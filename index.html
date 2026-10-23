@@ -374,7 +374,7 @@ const RED_CHANCE = 0.08;   // 교차로마다 빨간불에 걸릴 확률 (5~10%)
 const EVAN_NEED = 5;        // 파란 스포츠카를 이만큼 만나면 히든 엔딩   // 갑부로 시작할 확률
 const DEBUG = /[?&]debug\b/.test(location.search);       // 테스트용: 주소 뒤 ?debug
 const FORCE_RICH = DEBUG && /[?&]rich\b/.test(location.search);   // ?debug&rich 면 갑부로 시작
-const FORCE_GUITAR = /[?&]guitar\b/.test(location.search);   // 주소 뒤 ?guitar 면 누구나 기타 병원 엔딩 확정 (헬기·갑부·에반 없음)
+const FORCE_GUITAR = /[?&#]guitar\b/.test(location.search + location.hash);   // 주소 뒤 ?guitar 면 누구나 기타 병원 엔딩 확정 (헬기·갑부·에반 없음)
 
 const DISEASES = [
   { name: '급성 심부전', sym: '숨이 차고... 가슴이 조여 온다...' },
@@ -1672,12 +1672,13 @@ async function createProfile(raw) {
 }
 
 function refreshTitle() {
+  if (FORCE_GUITAR) { $('#title .eyebrow').textContent = '기타 엔딩 체험 모드'; $('#startBtn').textContent = '기타 엔딩 시작'; }
   const who = $('#who');
   if (!Store.ready) who.textContent = '저장 데이터 불러오는 중...';
   else if (!P) who.textContent = '플레이어 이름을 정해 주세요';
   else who.textContent = `플레이어 ${P.name} · 플레이 ${P.stats.plays}회 · 생존 ${P.stats.clears}회`;
   $('#startBtn').disabled = !Store.ready;
-  $('#contBtn').hidden = !(P && P.save);
+  $('#contBtn').hidden = !(P && P.save) || FORCE_GUITAR;   // 기타 체험은 늘 새 판으로
   if (P && P.save) $('#contBtn').textContent = `이어하기 · ${{ house: '집', wait: '집', amb: '구급차', drive: '운전 중' }[P.save.kind] || ''} 남은 ${fmt(P.save.time)}`;
   $('#profBtn').hidden = !(Store.ready && Store.mode === 'local' && P);
   refreshDexBtn();
