@@ -382,11 +382,17 @@ const DISEASES = [
   { name: '대동맥 박리', sym: '등이 찢어지는 것처럼 아프다...' },
 ];
 const TOWNS = ['새봄동', '은행동', '가람동', '다솜동', '한빛동', '별내동', '솔내동', '누리동', '바람동', '하늘동'];
+// pal이 있으면 그 지인은 그 모습으로 데리러 온다 (없으면 기본 친구 모습). long: 긴 머리
+const PAL_FR = { h: '#6b3e22', s: '#e8b48c', e: '#2b2220', b: '#4fae6a', p: '#4a3b2e', k: '#16161d' };
+const PAL_W = (h, b) => ({ ...PAL_FR, h, b, long: true });
 const FRIEND_POOL = [
-  { name: '박민준', rel: '친구' }, { name: '이서연', rel: '친구' }, { name: '최도윤', rel: '형' },
-  { name: '정하은', rel: '누나' }, { name: '강지호', rel: '동생' }, { name: '윤채원', rel: '친구' },
-  { name: '이광언', rel: '친구' }, { name: '정찬서', rel: '친구' }, { name: '이호영', rel: '친구' },
+  { name: '박민준', rel: '친구' }, { name: '이서연', rel: '친구', pal: PAL_W('#3a2418', '#d65b8c') }, { name: '최도윤', rel: '형' },
+  { name: '정하은', rel: '누나', pal: PAL_W('#5a3020', '#8a5bd6') }, { name: '강지호', rel: '동생' }, { name: '윤채원', rel: '친구', pal: PAL_W('#1e1612', '#3a9ac9') },
+  { name: '이광언', rel: '친구' }, { name: '정찬서', rel: '친구' },
+  // 이호영: 까무잡잡한 피부에 주황 뽀글이 후리스
+  { name: '이호영', rel: '친구', pal: { h: '#1a1210', s: '#a86e44', e: '#1a120e', b: '#d2683a', p: '#2e2e3a', k: '#16161d', fleece: '#e8844e' } },
 ];
+const friendPal = c => { const f = c && FRIEND_POOL.find(x => x.name === c.name); return f && f.pal || PAL_FR; };
 const SUR = '김이박최정강조윤장임한오서신권황'.split('');
 const GIVEN = ['민수', '정훈', '지현', '수빈', '태호', '은지', '성민', '영호', '미경', '재원', '혜진', '상우', '경아', '동현'];
 const CLINIC = ['튼튼', '행복', '바른', '미소', '하나', '온정', '열린', '새빛', '사랑', '늘봄'];
@@ -394,7 +400,6 @@ const kname = () => pick(SUR) + pick(GIVEN);
 const hospName = town => town.replace('동', '') + pick(['대학병원', '종합병원', '의료원']);
 
 const PAL_ME = { h: '#2b2220', s: '#f2c19b', e: '#2b2220', b: '#5b8cd6', p: '#363b56', k: '#16161d' };
-const PAL_FR = { h: '#6b3e22', s: '#e8b48c', e: '#2b2220', b: '#4fae6a', p: '#4a3b2e', k: '#16161d' };
 const PAL_BUTLER = { h: '#b8b8c0', s: '#e8b48c', e: '#2b2220', b: '#22222c', p: '#22222c', k: '#0a0a0e' };
 const PAL_DIR = { h: '#9a9aa4', s: '#f0c19c', e: '#2b2220', b: '#f4f6f8', p: '#3a3a48', k: '#16161d' };
 const PAL_ROCK = { h: '#121216', s: '#f0c19c', e: '#2b2220', b: '#f4f4f4', p: '#1a1a20', k: '#0a0a0e' };   // 기타의 신 이광언: 긴 머리 + 흰 가운
@@ -955,7 +960,7 @@ function friendArrives() {
     { fn: () => { if (!rich && !G.heli) SFX.knock(); } },
     { dlg: () => ({ lines: rich ? [['sys', '다다다다— 계단을 뛰어오르는 발소리!'], [f.name, '주인님! 들어가겠습니다!']]
       : G.heli ? [['sys', '두두두두두— 창밖이 헬기 불빛으로 번쩍인다!'], [f.name, '나야! 문 열게!']] : [['sys', '쾅쾅쾅!'], [f.name, '나야! 문 열게!']] }) },
-    { fn: () => { G.doorOpen = true; G.npc = { x: 160, y: 176, anim: 0, moving: false, pal: rich ? PAL_BUTLER : PAL_FR }; beep(300, 0.1); } },
+    { fn: () => { G.doorOpen = true; G.npc = { x: 160, y: 176, anim: 0, moving: false, pal: rich ? PAL_BUTLER : friendPal(f) }; beep(300, 0.1); } },
     { move: [[N, 160, 150]], speed: run },
     { move: [[N, clamp(G.p.x + side, 20, 300), clamp(G.p.y, 40, 158)]], speed: run },
     { dlg: () => ({ lines: rich ? [[f.name, '주인님! 정신 차리십시오!'], [f.name, '업히십시오. 병원이 바로 앞입니다. 원장님께 연락해 두었습니다.'], ['me', '...고마워요...']]
@@ -2565,6 +2570,8 @@ function drawPerson(a) {
   const bob = a.moving && f === 1 ? -1 : 0;
   const rows = BODY.concat(LEGS[f]);
   for (let r = 0; r < rows.length; r++) for (let c = 0; c < 8; c++) { const ch = rows[r][c]; if (ch !== '.') R(x - 4 + c, y - 12 + r + bob, 1, 1, pal[ch]); }
+  if (pal.long) { R(x - 5, y - 10 + bob, 1, 7, pal.h); R(x + 4, y - 10 + bob, 1, 7, pal.h); R(x - 4, y - 10 + bob, 1, 3, pal.h); R(x + 3, y - 10 + bob, 1, 3, pal.h); }   // 어깨까지 오는 긴 머리
+  if (pal.fleece) { for (const [fx, fy] of [[-2, -7], [1, -6], [-1, -5], [2, -4], [-3, -4], [0, -7]]) R(x + fx, y + fy + bob, 1, 1, pal.fleece); R(x - 1, y - 7 + bob, 2, 1, '#b04e26'); }   // 뽀글이 털 + 목 카라
 }
 
 // 친구가 플레이어를 업은 모습: 등 뒤로 머리가 보이고 어깨에 손이 걸린다
@@ -3070,7 +3077,7 @@ function frame(now) {
 }
 newGame(); refreshTitle(); initStore();
 requestAnimationFrame(frame);
-if (DEBUG) window.__golden = { get G() { return G; }, get MAP() { return MAP; }, get P() { return P; }, Store, AU, Dlg, startCall, findPath };
+if (DEBUG) window.__golden = { get G() { return G; }, get MAP() { return MAP; }, get P() { return P; }, Store, AU, Dlg, startCall, findPath, drawPerson, R, ctx, FRIEND_POOL, PAL_FR, PAL_ME };
 })();
 </script>
 </body>
