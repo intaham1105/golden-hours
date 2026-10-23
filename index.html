@@ -374,7 +374,7 @@ const RED_CHANCE = 0.08;   // 교차로마다 빨간불에 걸릴 확률 (5~10%)
 const EVAN_NEED = 5;        // 파란 스포츠카를 이만큼 만나면 히든 엔딩   // 갑부로 시작할 확률
 const DEBUG = /[?&]debug\b/.test(location.search);       // 테스트용: 주소 뒤 ?debug
 const FORCE_RICH = DEBUG && /[?&]rich\b/.test(location.search);   // ?debug&rich 면 갑부로 시작
-const FORCE_GUITAR = DEBUG && /[?&]guitar\b/.test(location.search);   // ?debug&guitar 면 기타 병원
+const FORCE_GUITAR = /[?&]guitar\b/.test(location.search);   // 주소 뒤 ?guitar 면 누구나 기타 병원 엔딩 확정 (헬기·갑부·에반 없음)
 
 const DISEASES = [
   { name: '급성 심부전', sym: '숨이 차고... 가슴이 조여 온다...' },
@@ -659,6 +659,7 @@ function makeGame(seed) {
     doorOpen: false, carry: false, cut: null, drive: null, outside: null, route: '', dial: '',
     rich: FORCE_RICH || Math.random() < RICH_CHANCE, crashes: 0, evanMet: 0, faint: false, crash: null, dying: null, wflash: 0, guitar, gtr: null,
   };
+  if (FORCE_GUITAR) { G.heli = false; G.rich = false; }
   buildWorld(towns);
   buildContacts();
 }
@@ -938,7 +939,7 @@ function collapse() {
   G.phase = 'collapsing'; G.shake = 0.7; G.flash = 1; G.p.lying = true; G.p.moving = false;
   beep(110, 0.4, 0.08); SFX.thud();
   Dlg.start({
-    lines: [['sys', '...윽!'], ['me', G.disease.sym], ['sys', `의심 증상: ${G.disease.name}. 골든타임이 흐르기 시작했다.`], ['sys', G.rich ? '오른쪽 아래 휴대폰 연락처에서 집사를 부르자.' : '오른쪽 아래 휴대폰으로 119에 전화하자.']],
+    lines: [['sys', '...윽!'], ['me', G.disease.sym], ['sys', `의심 증상: ${G.disease.name}. 골든타임이 흐르기 시작했다.`], ['sys', G.rich ? '오른쪽 아래 휴대폰 연락처에서 집사를 부르자.' : '오른쪽 아래 휴대폰으로 119에 전화하자.']].concat(FORCE_GUITAR ? [['sys', '[기타 엔딩 체험] 119에 3번 전화한 뒤, 즐겨찾기 지인에게 전화하세요.']] : []),
     onDone: () => { G.phase = 'collapsed'; G.timerOn = true; setObj(G.rich ? '휴대폰 연락처에서 <b>집사</b> 부르기' : '휴대폰으로 <b>119</b>에 전화하기 (0/3)'); refreshGuides(); },
   });
 }
@@ -1072,7 +1073,7 @@ function inCarCalls() {
     title: '스피커폰 · ' + f, blocking: false, auto: true, lines: first.concat(second), onDone: () => {
       if (G.drive !== d || G.ended) return;
       G.refused += second.length ? 2 : 1;
-      const cur = townAt(d.x), gtr = G.guitar && cur < GUITAR_TOWN;
+      const cur = townAt(d.x), gtr = G.guitar && (FORCE_GUITAR || cur < GUITAR_TOWN);
       const k = gtr ? GUITAR_TOWN : clamp(Math.max(ri(2, NT - 1), cur + 1), 2, NT - 1);
       const T = MAP.towns[k];
       T.hosp.open = true;
@@ -2522,7 +2523,7 @@ function updateDrive(dt) {
     if (n.p < n.a) { n.p = n.a; n.s = 1; } else if (n.p > n.b) { n.p = n.b; n.s = -1; }
     if (n.hz) { n.x = n.p; n.y = n.c0 + (n.s > 0 ? n.lane : -n.lane); n.dir = n.s > 0 ? 'ArrowRight' : 'ArrowLeft'; }
     else { n.y = n.p; n.x = n.c0 + (n.s > 0 ? -n.lane : n.lane); n.dir = n.s > 0 ? 'ArrowDown' : 'ArrowUp'; }
-    if (n.kind === 'evan' && !n.met && d.kind === 'friend' && !d.evan && !G.ended && Math.hypot(n.x - d.x, n.y - d.y) < 90) {
+    if (n.kind === 'evan' && !FORCE_GUITAR && !n.met && d.kind === 'friend' && !d.evan && !G.ended && Math.hypot(n.x - d.x, n.y - d.y) < 90) {
       n.met = true; G.evanMet++;
       if (G.evanMet >= EVAN_NEED) startEvan(); else { popup(`파란 스포츠카 ${G.evanMet}대째!`, true); beep(990, 0.06, 0.03); }
     }
