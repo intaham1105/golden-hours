@@ -1,0 +1,19 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 이름: 누구나 확인 가능, 없을 때 내 이름으로 만들기만 가능 (바꾸기·지우기 불가) → 중복 불가
+    match /names/{key} {
+      allow read: if true;
+      allow create: if request.auth != null
+        && request.resource.data.keys().hasOnly(['uid', 'name', 'at'])
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.name is string
+        && request.resource.data.name.size() >= 2 && request.resource.data.name.size() <= 10;
+      allow update, delete: if false;
+    }
+    // 프로필(도감 · 설정 · 기록 · 이어하기): 본인만 읽고 쓰기
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}
