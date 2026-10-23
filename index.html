@@ -363,12 +363,16 @@ const RICH_CHANCE = 0.05;
 const LAMBO_CHANCE = 0.13; // 친구 차가 람보르기니일 확률
 const HELI_CHANCE = 0.15;  // 친구가 헬기를 타고 오는 히든 엔딩 확률
 const HELI_SPEED = 380;    // 헬기 비행 속도 (px/초)
+const GUITAR_CHANCE = 0.05; // 받아 주는 병원이 대곡동 기타 병원일 확률 (히든 엔딩)
+const GUITAR_TOWN = 2;      // 대곡동은 세 번째 동네
+const GUITAR_RUN = 240;     // 기타를 들고 집까지 달리는 속도 (람보르기니보다 빠름)
 const DEF_SET = { music: 60, sfx: 80, shake: true, fast: false };
 let SET = { ...DEF_SET };   // 지금 설정 (프로필을 불러오면 프로필 것으로 바뀜)
 const RED_CHANCE = 0.08;   // 교차로마다 빨간불에 걸릴 확률 (5~10%)
 const EVAN_NEED = 5;        // 파란 스포츠카를 이만큼 만나면 히든 엔딩   // 갑부로 시작할 확률
 const DEBUG = /[?&]debug\b/.test(location.search);       // 테스트용: 주소 뒤 ?debug
 const FORCE_RICH = DEBUG && /[?&]rich\b/.test(location.search);   // ?debug&rich 면 갑부로 시작
+const FORCE_GUITAR = DEBUG && /[?&]guitar\b/.test(location.search);   // ?debug&guitar 면 기타 병원
 
 const DISEASES = [
   { name: '급성 심부전', sym: '숨이 차고... 가슴이 조여 온다...' },
@@ -391,6 +395,7 @@ const PAL_ME = { h: '#2b2220', s: '#f2c19b', e: '#2b2220', b: '#5b8cd6', p: '#36
 const PAL_FR = { h: '#6b3e22', s: '#e8b48c', e: '#2b2220', b: '#4fae6a', p: '#4a3b2e', k: '#16161d' };
 const PAL_BUTLER = { h: '#b8b8c0', s: '#e8b48c', e: '#2b2220', b: '#22222c', p: '#22222c', k: '#0a0a0e' };
 const PAL_DIR = { h: '#9a9aa4', s: '#f0c19c', e: '#2b2220', b: '#f4f6f8', p: '#3a3a48', k: '#16161d' };
+const PAL_ROCK = { h: '#121216', s: '#f0c19c', e: '#2b2220', b: '#f4f4f4', p: '#1a1a20', k: '#0a0a0e' };   // 미친기타신 이광언: 긴 머리 + 흰 가운
 const PAL_EMT = { h: '#1f1f26', s: '#f0c19c', e: '#2b2220', b: '#e8eef5', p: '#2b4a8a', k: '#16161d' };
 const BODY = ['..hhhh..', '.hhhhhh.', '.hssssh.', '.sesses.', '..ssss..', '.bbbbbb.', 'sbbbbbbs', 'sbbbbbbs', '.bbbbbb.'];
 const LEGS = [['.pp..pp.', '.pp..pp.', '.kk..kk.'], ['.pp..pp.', '.pp...k.', '.kk.....'], ['.pp..pp.', '.k...pp.', '.....kk.']];
@@ -462,6 +467,7 @@ const TRACKS = {
   tense: { bpm: 92, ch: [[57, 60, 64], [57, 60, 64], [50, 53, 57], [52, 56, 59]], pad: 0.026, beat: [0, 4] },
   drive: { bpm: 124, ch: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 55, 59]], pad: 0.016, bass: [0, 1, 2, 3, 4, 5, 6, 7], bassVol: 0.04, arp: [0, 3, 6], arpVol: 0.014, beat: [0] },
   hero: { bpm: 140, ch: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]], pad: 0.02, bass: [0, 2, 4, 6], bassVol: 0.05, arp: [0, 1, 2, 3, 4, 5, 6, 7], arpVol: 0.016, arpType: 'triangle' },
+  rock: { bpm: 150, ch: [[52, 55, 59], [50, 53, 57], [48, 52, 55], [50, 55, 59]], pad: 0.012, padType: 'square', bass: [0, 1, 2, 3, 4, 5, 6, 7], bassVol: 0.06, arp: [0, 2, 3, 4, 6], arpVol: 0.016, arpType: 'sawtooth', beat: [0, 4] },
   hope: { bpm: 70, ch: [[53, 57, 60], [48, 52, 55], [50, 53, 57], [46, 50, 53]], pad: 0.028, arp: [0, 4], arpVol: 0.016 },
   win: { bpm: 80, ch: [[48, 52, 55], [53, 57, 60], [55, 59, 62], [48, 52, 55, 60]], pad: 0.024, arp: [0, 2, 4, 6], arpVol: 0.02, bass: [0, 4], bassVol: 0.05 },
   sad: { bpm: 54, ch: [[57, 60, 64], [50, 53, 57], [57, 60, 64], [52, 56, 59]], pad: 0.026, arp: [0], arpVol: 0.014 },
@@ -609,6 +615,9 @@ function newGame(seed = Math.floor(Math.random() * 4294967296)) {
 }
 function makeGame(seed) {
   const towns = ['월성동'].concat(shuffle(TOWNS).slice(0, NT - 1));
+  // 기타 병원은 따로 굴린 값으로 정한다 (같은 시드면 같은 결과, 다른 생성 순서는 그대로)
+  const guitar = FORCE_GUITAR || mulberry32(seed ^ 0x6a17c3)() < GUITAR_CHANCE;
+  if (guitar) towns[GUITAR_TOWN] = '대곡동';
   el.clock.classList.remove('dead');
   G = { seed, lambo: Math.random() < LAMBO_CHANCE, heli: Math.random() < HELI_CHANCE,
     scene: 'house', phase: 'title', t: 0, time: GOLD, timerOn: false, ended: false,
@@ -618,7 +627,7 @@ function makeGame(seed) {
     p: { x: 96, y: 150, anim: 0, moving: false, lying: false, visible: true, pal: PAL_ME },
     npc: null, walkT: 0, waitT: 0, shake: 0, flash: 0, fade: 0, fadeDir: 0, fadeCb: null,
     doorOpen: false, carry: false, cut: null, drive: null, outside: null, route: '', dial: '',
-    rich: FORCE_RICH || Math.random() < RICH_CHANCE, crashes: 0, evanMet: 0, faint: false, crash: null, dying: null, wflash: 0,
+    rich: FORCE_RICH || Math.random() < RICH_CHANCE, crashes: 0, evanMet: 0, faint: false, crash: null, dying: null, wflash: 0, guitar, gtr: null,
   };
   buildWorld(towns);
   buildContacts();
@@ -1032,14 +1041,18 @@ function inCarCalls() {
     title: '스피커폰 · ' + f, blocking: false, auto: true, lines: first.concat(second), onDone: () => {
       if (G.drive !== d || G.ended) return;
       G.refused += second.length ? 2 : 1;
-      const cur = townAt(d.x);
-      const k = clamp(Math.max(ri(2, NT - 1), cur + 1), 2, NT - 1);
+      const cur = townAt(d.x), gtr = G.guitar && cur < GUITAR_TOWN;
+      const k = gtr ? GUITAR_TOWN : clamp(Math.max(ri(2, NT - 1), cur + 1), 2, NT - 1);
       const T = MAP.towns[k];
       T.hosp.open = true;
       d.target = { x: T.hosp.ex, y: T.hosp.ey, town: T.name, name: T.hosp.name, k };
       MAP.field = buildField(T.hosp.ex, T.hosp.ey); d.routeT = 0;
       Dlg.start({
-        title: '스피커폰 · ' + f, blocking: false, auto: true, lines: [
+        title: '스피커폰 · ' + f, blocking: false, auto: true, lines: gtr ? [
+          ['sys', '뚜르르... 수화기 너머로 지이이잉— 일렉기타 소리가 들린다.'],
+          ['기타 병원', '네~ 대곡동 기타 병원입니다! 원장님이 지금 바로 봐 주신대요!'],
+          [f, '기타... 병원? 아무 데나 좋아요! 지금 갑니다!'],
+          [f, `${T.name} 기타 병원! 미친기타신 이광언이라는 의사가 있대. 내비 화살표 따라가!`]] : [
           ['sys', '뚜르르...'],
           [T.hosp.name, `${T.hosp.name} 응급실입니다. ...네, 지금 수술 가능합니다. 바로 오세요.`],
           [f, `${T.name} ${T.hosp.name}! 여기서 ${Math.max(1, k - cur)}동네 더 가야 해. 내비 화살표 따라가!`]],
@@ -1052,7 +1065,7 @@ function arrive() {
   const d = G.drive; if (d.arrived) return; d.arrived = true; d.v = 0; G.timerOn = false; d.light = null;
   Dlg.active = false; el.dlg.hidden = true;
   refreshGuides();
-  const kind = d.evan ? 'evan' : d.kind === 'heli' ? 'heli' : d.kind === 'amb' ? 'doctor' : G.time >= 600 ? 'full' : G.time >= 180 ? 'icu' : 'scar';
+  const kind = d.evan ? 'evan' : d.kind === 'heli' ? 'heli' : d.kind === 'amb' ? 'doctor' : d.target.name === '기타 병원' ? 'guitar' : G.time >= 600 ? 'full' : G.time >= 180 ? 'icu' : 'scar';
   G.faint = false;
   const v = DIRV[d.dir], fx = d.x + v[0] * 15, fy = d.y + v[1] * 15;
   const ex = d.target.x, ey = d.target.y - 28;
@@ -1060,7 +1073,8 @@ function arrive() {
   G.medics = [M1, M2];
   G.medFade = { from: Math.max(10, Math.hypot(fx - 5 - M1.x, fy - M1.y)), tx: fx - 5, ty: fy };
   setObj(`<b>${d.target.name}</b> 도착!`);
-  Dlg.start({ blocking: false, auto: true, lines: [['sys', `${d.target.name} 응급실 앞. 의료진이 들것을 들고 뛰어나온다.`], ['의료진', '환자분 이쪽으로! 바로 옮깁니다!']] });
+  Dlg.start({ blocking: false, auto: true, lines: kind === 'guitar' ? [['sys', '기타 병원 앞. 건물 안에서 앰프 소리가 쿵쿵 울린다.'], ['간호사', '원장님이 기다리고 계세요! 이쪽으로!']]
+    : [['sys', `${d.target.name} 응급실 앞. 의료진이 들것을 들고 뛰어나온다.`], ['의료진', '환자분 이쪽으로! 바로 옮깁니다!']] });
   cutscene([
     { wait: 0.8 },
     { move: [[() => M1, fx - 5, fy], [() => M2, fx + 5, fy]], speed: 16 },
@@ -1079,6 +1093,7 @@ const TREAT_LINES = {
   rich: [['sys', 'VIP 수술실. 희미하게 의식이 돌아온다...'], ['의료진', '병원장님 지시입니다. 최고 팀으로 바로 들어갑니다.'], ['의료진', '걱정 마세요. 시간은 충분합니다.']],
 };
 function enterTreat(kind) {
+  if (kind === 'guitar') { enterGuitar(); return; }
   G.scene = 'treat'; G.medics = null; G.fadeDir = -1;
   Object.assign(G.p, { x: 164, y: 98, lying: true, visible: true, moving: false });
   G.npc = null; G.carry = false;
@@ -1091,6 +1106,68 @@ function enterTreat(kind) {
     { wait: 0.6 },
     { fn: () => ending(kind) },
   ]);
+}
+
+// ───── 히든 엔딩: 대곡동 기타 병원, 미친기타신 이광언의 음악치유 ─────
+function enterGuitar() {
+  const at = `${G.drive.target.town} ${G.drive.target.name}`;
+  G.scene = 'treat'; G.medics = null; G.fadeDir = -1;
+  Object.assign(G.p, { x: 164, y: 98, lying: true, visible: true, moving: false, anim: 0 });
+  G.npc = null; G.carry = false;
+  const doc = { x: 204, y: 104, pal: PAL_ROCK, anim: 0, moving: false, name: '이광언 원장' };
+  G.treat = [doc];
+  G.gtr = { at, play: false, dance: false, hand: false, mine: false, notes: [], noteT: 0 };
+  setObj('');
+  const me = () => G.p, gt = G.gtr;
+  cutscene([
+    { wait: 1.2 },
+    { dlg: () => ({ lines: [['sys', '대곡동 기타 병원 진료실. 벽마다 앰프가 쌓여 있다...'],
+      ['이광언', '어서 와요. 이 병원 원장, 미친기타신 이광언입니다.'],
+      ['이광언', '수술이요? 필요 없어요. 바로 음악치유 들어갑니다.']] }) },
+    { fn: () => { gt.play = true; G.flash = 0.5; G.shake = 0.3; } },
+    { wait: 3.2 },
+    { dlg: () => ({ lines: [['sys', '지이이이잉~!! 빨간 일렉기타 소리가 멈춰 가던 심장을 두드린다!'], ['이광언', '느껴져요? 이게 바로 로큰롤 심폐소생술!']] }) },
+    { fn: () => { Object.assign(G.p, { lying: false, x: 164, y: 106 }); gt.dance = true; G.flash = 0.8; G.shake = 0.4; beep(520, 0.1); beep(780, 0.15); } },
+    { dlg: () => ({ lines: [['sys', '벌떡! 침대에서 뛰어내려 펄떡펄떡 춤을 춘다!']] }) },
+    { wait: 1.6 },
+    { dlg: () => ({ lines: [['me', '이광언 의사님아..진짜 감사하다해~ㅠㅠ']] }) },
+    { fn: () => { gt.dance = false; gt.play = false; } },
+    { move: [[me, doc.x - 10, doc.y]], speed: 40 },
+    { fn: () => { gt.hand = true; beep(300, 0.08); beep(400, 0.1); } },
+    { dlg: () => ({ lines: [['sys', '꽉! 두 사람이 굳게 악수를 나눈다.'], ['이광언', '건강하세요. 로큰롤!']] }) },
+    { fn: () => { gt.hand = false; gt.mine = true; G.shake = 0.4; G.flash = 0.4; beep(900, 0.06); beep(1200, 0.1, 0.05, 'sawtooth'); } },
+    { dlg: () => ({ lines: [['sys', '...그리고 그대로 빨간 일렉기타를 낚아챘다!'], ['이광언', '어? 어어?! 내 기타!!']] }) },
+    { move: [[me, 164, 140]], speed: 120 },
+    { move: [[me, 164, 190]], speed: 120 },
+    { fn: () => transition(enterGuitarRun) },
+  ]);
+}
+// 기타를 든 채 집까지 차보다 빠르게 달린다
+function enterGuitarRun() {
+  const t = G.drive.target, h = MAP.home;
+  G.scene = 'drive'; G.cut = null; G.p.visible = false; G.treat = null;
+  G.drive = { kind: 'run', auto: true, x: t.x, y: t.y, dir: 'ArrowLeft', v: GUITAR_RUN, target: null, arrived: false, bump: 0, town: townAt(t.x),
+    path: findPath(t.x, t.y, h.x, h.y), pi: 0, wait: 0, objKey: '', odo: 0, lastInter: null, light: null, route: null, routeT: 0, saidLow: true, max: GUITAR_RUN, acc: 0, foot: 0, dust: [] };
+  MAP.field = null;
+  setObj('빨간 일렉기타를 들고 <b>집까지</b> 전력 질주!');
+  Dlg.start({ blocking: false, auto: true, lines: [['sys', '기타를 품에 안고, 자동차보다 빠르게 집으로 달린다!'], ['이광언', '거기 서!! 내 기타아아!!'], ['me', '이건 이제 제 심장이에요~!!']] });
+}
+function guitarHome() {
+  const d = G.drive; d.arrived = true; d.v = 0;
+  cutscene([
+    { dlg: () => ({ lines: [['sys', '집 도착. 숨 하나 차지 않는다.'], ['me', '...근데 나 기타 칠 줄 모르는데.']] }) },
+    { wait: 0.4 },
+    { fn: () => ending('guitar') },
+  ]);
+}
+// 빨간 일렉기타. (x, y)는 몸통 왼쪽 아래
+function drawGuitar(x, y, strum) {
+  x = Math.round(x); y = Math.round(y);
+  for (let i = 0; i < 7; i++) R(x + 5 + i, y - 4 - i, 1, 1, '#7a4a22');
+  R(x + 11, y - 12, 2, 2, '#1a1a1e'); R(x + 13, y - 13, 1, 1, '#d0d0d8');
+  R(x + 1, y - 5, 4, 1, '#e0202c'); R(x, y - 4, 6, 4, '#e0202c'); R(x + 1, y, 4, 1, '#a01018');
+  R(x + 1, y - 3, 2, 2, '#f4f4f4'); R(x + 4, y - 3, 1, 2, '#d0d0d8');
+  if (strum != null) R(x + 2, y - 4 + strum, 2, 1, '#f0c19c');
 }
 
 // ───── 사고 엔딩: 세 번째 사고로 차가 멈춘다 ─────
@@ -1322,6 +1399,7 @@ const ENDINGS = [
   { id: 'rich', name: '집사의 등', cls: 'rare', desc: '집사의 등에 업혀 VIP 수술실로', hint: '아주 드물게, 전혀 다른 집에서 눈을 뜬다' },
   { id: 'evan', name: '파란 로봇', cls: 'rare', desc: '파란 로봇이 차를 안고 달렸다', hint: '???', hidden: true },
   { id: 'heli', name: '하늘길', cls: 'rare', desc: '친구가 헬기를 몰고 와 병원 옥상에 내렸다', hint: '???', hidden: true },
+  { id: 'guitar', name: '기타 병원', cls: 'rare', desc: '미친기타신의 음악치유, 그리고 기타 강탈', hint: '???', hidden: true },
   { id: 'crash', name: '사고', cls: 'lose', desc: '세 번의 사고, 멈춰 선 차', hint: '운전 중 사고를 여러 번 내면...' },
   { id: 'home', name: '집에서 꺼진 불', cls: 'lose', desc: '거절 전화 속에 집에서 쓰러졌다', hint: '집에서 시간이 다 지나면' },
   { id: 'road', name: '길 위에서', cls: 'lose', desc: '병원을 앞에 두고 멈췄다', hint: '운전 중에 시간이 다 지나면' },
@@ -1362,6 +1440,7 @@ function endingText(id) {
     case 'rich': return '집 바로 앞 대형병원, 병원장이 직접 비워 둔 수술실. 같은 밤 같은 병원 응급실 앞에서는 오늘도 "수용 불가"라는 대답이 이어졌다.';
     case 'evan': return `파란 스포츠카가 로봇으로 변신해 ${help}의 차를 통째로 안고 ${at}까지 달렸다. 아무도 믿지 않겠지만, 살았다.`;
     case 'heli': return `${help}이(가) 헬기를 몰고 와 집 앞 도로에 내렸다. 막힌 길도 빨간불도 없이, ${at}까지 몇 분 만에 날아갔다.`;
+    case 'guitar': return '대곡동 기타 병원, 미친기타신 이광언 원장의 빨간 일렉기타 음악치유로 벌떡 일어났다. 감사의 악수를 나눈 뒤 기타를 들고 자동차보다 빠르게 집까지 달려왔다. 기타 병원은 오늘도 기타를 찾고 있다.';
     case 'crash': return `세 번째 사고로 ${help}의 ${G.lambo ? '람보르기니' : '차'}가 멈춰 섰다. 견인차도, 구급차도 오지 않았다.`;
     case 'home': return '수화기 너머 거절만 듣다가, 집 바닥에서 의식이 꺼졌다. 이 밤, 같은 이유로 쓰러진 사람이 또 있다.';
     case 'road': return (at ? `${at}까지 ${(Math.hypot(d.target.x - d.x, d.target.y - d.y) / 1000 * 1.2).toFixed(1)}km를 남기고 심장이 멈췄다.` : '받아줄 병원조차 정하지 못한 채, 차 안에서 심장이 멈췄다.') + ' 이 밤, 같은 이유로 길 위에 있는 사람이 또 있다.';
@@ -1377,7 +1456,7 @@ function ending(id) {
   const e = el.end; e.classList.remove('win', 'lose');
   e.classList.add(lose ? 'lose' : 'win');
   $('#endEye').textContent = (lose ? 'GAME OVER · ' : E.cls === 'rare' ? '희귀 엔딩 · ' : '엔딩 · ') + E.name;
-  $('#endTitle').textContent = lose ? (id === 'crash' ? '차가 멈췄습니다' : '골든타임이 지났습니다') : id === 'rich' ? '수술실 직행' : '응급실 도착';
+  $('#endTitle').textContent = lose ? (id === 'crash' ? '차가 멈췄습니다' : '골든타임이 지났습니다') : id === 'rich' ? '수술실 직행' : id === 'guitar' ? '벌떡 일어났습니다' : '응급실 도착';
   $('#endText').textContent = endingText(id);
   const stats = [['남은 골든타임', lose ? '00:00' : fmt(G.time)], ['건 전화', G.calls + '통'], ['거절당한 횟수', G.refused + '번']];
   if (G.crashes) stats.push(['사고', G.crashes + '번']);
@@ -1615,7 +1694,7 @@ function snapshot() {
   if (G.phase === 'waitAmb' && G.helper) return { ...base, kind: 'amb' };
   const d = G.drive;
   if (G.scene === 'drive' && d && !d.arrived && !d.evan) {
-    if (d.kind === 'heli') return undefined;
+    if (d.kind === 'heli' || d.kind === 'run') return undefined;
     if (d.kind === 'amb') return { ...base, kind: 'amb' };
     return { ...base, kind: 'drive', x: Math.round(d.x), y: Math.round(d.y), dir: d.dir, odo: Math.round(d.odo), saidLow: !!d.saidLow,
       tk: d.target ? d.target.k : -1, met: MAP.npcs.map((n, i) => n.met ? i : -1).filter(i => i >= 0) };
@@ -1941,7 +2020,7 @@ function buildWorld(names) {
     const roads = def.roads.map(wide), bridges = def.bridges.map(wide);
     paintRoads(roads, bridges);
     def.over();
-    const hosp = { ...def.hosp, name: def.hosp.name || hospName(name), open: false };
+    const hosp = { ...def.hosp, name: def.hosp.name || (name === '대곡동' ? '기타 병원' : hospName(name)), open: false };
     hosp.ex += ox; hosp.lx += ox;
     W_.towns.push({ name, ox, canvas: cvs, hosp });
     for (const r of roads.concat(bridges)) { markRect(mask, ox + r[0], r[1], r[2], r[3], 1); W_.rds.push({ x: ox + r[0], y: r[1], w: r[2], h: r[3], hz: r[2] > r[3] }); }
@@ -2142,9 +2221,9 @@ function moodNow() {
   if (!el.title.hidden || !$('#nameOv').hidden) return 'title';
   if (!el.end.hidden) return el.end.classList.contains('lose') ? 'sad' : 'win';
   if (G.dying || G.crash) return null;
-  if (G.scene === 'treat') return 'hope';
+  if (G.scene === 'treat') return G.gtr ? (G.gtr.play || G.gtr.dance ? 'rock' : 'hope') : 'hope';
   if (G.scene === 'office') return 'rich';
-  if (G.scene === 'drive') return G.drive.evan || G.drive.kind === 'heli' ? 'hero' : G.drive.arrived ? 'hope' : 'drive';
+  if (G.scene === 'drive') return G.drive.kind === 'run' ? 'rock' : G.drive.evan || G.drive.kind === 'heli' ? 'hero' : G.drive.arrived ? 'hope' : 'drive';
   if (G.phase === 'walk') return G.rich ? 'rich' : 'home';
   return 'tense';
 }
@@ -2186,11 +2265,12 @@ function update(dt) {
   }
   if (G.phase === 'waitFriend') { G.waitT += dt; if (G.waitT > (G.rich ? 2 : 3.5)) friendArrives(); }
   if (G.scene === 'drive') updateDrive(dt);
+  if (G.scene === 'treat' && G.gtr && G.gtr.play && Math.floor(G.t / 0.13) !== Math.floor((G.t - dt) / 0.13)) beep(pick([330, 392, 440, 494, 587, 659]), 0.1, 0.035, 'sawtooth');   // 일렉기타 리프
   // 소리: 상황별 배경음, 운전 중 엔진
   AU.mood(moodNow());
   if (G.scene === 'outside' && G.heli && !G.rich && Math.floor(G.t / 0.09) !== Math.floor((G.t - dt) / 0.09)) beep(55, 0.04, 0.04, 'sawtooth');   // 집 앞 헬기 프로펠러
   const dd = G.drive;
-  AU.engine(G.scene === 'drive' && dd && !dd.arrived && !G.ended && !dd.evan ? dd.v : -1, dd && dd.kind === 'amb', G.lambo);
+  AU.engine(G.scene === 'drive' && dd && !dd.arrived && !G.ended && !dd.evan && dd.kind !== 'run' ? dd.v : -1, dd && dd.kind === 'amb', G.lambo);
   // 자동 저장: 장면이 바뀌면 곧바로, 그 밖에는 주기적으로 (클로드 계정이면 드물게)
   const ck = G.scene + G.phase + (dd && dd.target ? 1 : 0);
   if (ck !== G.ckKey) { G.ckKey = ck; G.saveT = Math.min(G.saveT || 0, 0.6); }
@@ -2290,6 +2370,19 @@ function updateDrive(dt) {
   d.bump = Math.max(0, d.bump - dt);
   if (MAP.field) { d.routeT -= dt; if (d.routeT <= 0) { d.routeT = 0.25; d.route = routeFrom(d.x, d.y); } }
   if (d.evan) updateEvan(dt);
+  else if (d.kind === 'run') {
+    if (!d.path) { guitarHome(); return; }
+    let step = GUITAR_RUN * dt;
+    while (step > 0 && d.pi < d.path.length) {
+      const [px, py] = d.path[d.pi], dx = px - d.x, dy = py - d.y, dd = Math.hypot(dx, dy);
+      if (dd > 0.01) d.dir = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'ArrowRight' : 'ArrowLeft') : (dy > 0 ? 'ArrowDown' : 'ArrowUp');
+      if (dd <= step) { d.x = px; d.y = py; step -= dd; d.pi++; } else { d.x += dx / dd * step; d.y += dy / dd * step; step = 0; }
+    }
+    d.foot -= dt; if (d.foot <= 0) { d.foot = 0.07; beep(150, 0.02, 0.025, 'triangle'); d.dust.push({ x: d.x + rnd(-2, 2), y: d.y + 3, a: 0.6 }); }
+    for (const p of d.dust) p.a -= dt * 1.6;
+    d.dust = d.dust.filter(p => p.a > 0);
+    if (d.pi >= d.path.length) { guitarHome(); return; }
+  }
   else if (d.kind === 'heli') {
     // 이륙 → 직선 비행 → 착륙
     const dx = d.target.x - d.x, dy = d.target.y - d.y, dd = Math.hypot(dx, dy);
@@ -2699,7 +2792,9 @@ function drawTreat() {
   R(0, 0, W, H, '#c9d3d7');
   for (let y = 30; y < H; y += 12) for (let x = 0; x < W; x += 12) R(x, y, 12, 12, ((x + y) / 12) % 2 ? '#d6dfe2' : '#ccd6da');
   R(0, 0, W, 30, '#5f7b88'); R(0, 28, W, 2, '#48606c');
-  R(134, 6, 60, 16, '#e8eef2'); R(136, 8, 56, 12, '#9ed8c4'); T('응급 처치실', 164, 14, { size: 6, color: '#204a3c' });
+  const gt = G.gtr;
+  if (gt) { R(128, 6, 72, 16, '#1a1a1e'); R(130, 8, 68, 12, '#e0202c'); T('기타 병원 진료실', 164, 14, { size: 6, color: '#fff' }); }
+  else { R(134, 6, 60, 16, '#e8eef2'); R(136, 8, 56, 12, '#9ed8c4'); T('응급 처치실', 164, 14, { size: 6, color: '#204a3c' }); }
   for (let x = 24; x < 96; x += 6) R(x, 30, 4, 124, '#9cc9d6');
   for (let x = 236; x < 300; x += 6) R(x, 30, 4, 124, '#9cc9d6');
   lampGlow(164, 92, 100, 'rgba(255,255,236,.45)');
@@ -2710,8 +2805,40 @@ function drawTreat() {
   for (let i = 0; i < 34; i++) { const ph = (i + Math.floor(G.t * 18)) % 17, yy = ph === 8 ? 49 : ph === 9 ? 64 : ph === 7 || ph === 10 ? 54 : 57; R(210 + i, yy, 1, 1, '#4cff8a'); }
   T('HR 92', 238, 66, { size: 4, color: '#4cff8a', align: 'right' });
   R(92, 116, 26, 16, '#b8c4ca'); R(94, 118, 6, 2, '#7a868c'); R(102, 118, 10, 2, '#7a868c'); R(95, 132, 2, 8, '#7a868c'); R(113, 132, 2, 8, '#7a868c');
+  if (gt) { drawGuitarRoom(gt); return; }
   drawPerson(G.p);
   for (const m of G.treat || []) drawPerson(m);
+}
+function drawGuitarRoom(gt) {
+  // 앰프 더미
+  for (const [ax, ay] of [[8, 120], [8, 96], [282, 120], [282, 96]]) {
+    R(ax, ay, 30, 24, '#1a1a1e'); R(ax + 2, ay + 2, 26, 4, '#3a3a40'); R(ax + 3, ay + 8, 24, 14, '#2a2a30');
+    const pulse = gt.play || gt.dance ? Math.floor(G.t * 8) % 2 : 0;
+    R(ax + 9 - pulse, ay + 9 - pulse, 12 + pulse * 2, 12 + pulse * 2, '#0e0e12'); R(ax + 13, ay + 13, 4, 4, '#444');
+  }
+  if (gt.play || gt.dance) {
+    gt.noteT -= 1 / 60;
+    if (gt.noteT <= 0) { gt.noteT = 0.18; gt.notes.push({ x: 200 + rnd(-10, 14), y: 90, vx: rnd(-14, 14), a: 1, c: pick(['#ff3d52', '#ffd84a', '#9ed8ff', '#ff9ae0']) }); }
+    lampGlow(204, 92, 60, Math.floor(G.t * 6) % 2 ? 'rgba(255,60,80,.18)' : 'rgba(120,160,255,.14)');
+  }
+  for (const n of gt.notes) {
+    n.y -= 0.5; n.x += n.vx / 60; n.a -= 0.012;
+    ctx.globalAlpha = Math.max(0, n.a); R(n.x, n.y, 2, 2, n.c); R(n.x + 2, n.y - 5, 1, 6, n.c); R(n.x + 2, n.y - 5, 2, 1, n.c);
+  }
+  ctx.globalAlpha = 1; gt.notes = gt.notes.filter(n => n.a > 0);
+  const doc = G.treat[0], p = G.p;
+  // 원장: 긴 머리
+  drawPerson(doc);
+  R(doc.x - 5, doc.y - 10, 1, 5, PAL_ROCK.h); R(doc.x + 4, doc.y - 10, 1, 5, PAL_ROCK.h);
+  T(doc.name, doc.x - 6, doc.y - 22, { size: 4, color: '#ffd84a' });
+  if (!gt.mine && !gt.hand) drawGuitar(doc.x - 4, doc.y - 3, gt.play ? Math.floor(G.t * 12) % 2 : null);
+  if (gt.dance) {
+    const j = Math.abs(Math.sin(G.t * 9)) * 6, sw = Math.round(Math.sin(G.t * 4.5) * 4);
+    drawPerson({ ...p, x: p.x + sw, y: p.y - j, moving: true, anim: G.t });
+    if (Math.floor(G.t * 4.5) % 2) { R(p.x + sw - 7, p.y - j - 12, 2, 2, PAL_ME.s); R(p.x + sw + 5, p.y - j - 14, 2, 2, PAL_ME.s); }
+  } else drawPerson(p);
+  if (gt.hand) { R(p.x + 4, p.y - 7, 3, 2, PAL_ME.s); R(doc.x - 7, doc.y - 7, 3, 2, PAL_ROCK.s); }
+  if (gt.mine && p.visible) drawGuitar(p.x - 3, p.y - 3, null);
 }
 
 function chevron(x, y, a, s, col) {
@@ -2782,6 +2909,13 @@ function drawDrive() {
     const a = d.alt || 0;
     ctx.globalAlpha = 0.35; R(px - 9 + a * 8, py - 4 + a * 14, 20, 9, '#000'); ctx.globalAlpha = 1;
     drawHeli(px, py - a * 10, ANG[d.dir], 0.9 + a * 0.35, (d.rotor || 0) * 26);
+  } else if (d.kind === 'run') {
+    for (const p of d.dust) { ctx.globalAlpha = p.a; R(p.x - camX - 1, p.y - camY - 1, 3, 2, '#c8c0b0'); }
+    ctx.globalAlpha = 1;
+    const back = DIRV[d.dir];
+    for (let k = -1; k <= 1; k++) R(px - back[0] * 10 - (back[0] > 0 ? 6 : 0) + (back[0] ? 0 : k * 3), py - 6 + (back[0] ? k * 3 : 0) - back[1] * 10, back[0] ? 6 : 1, back[0] ? 1 : 6, 'rgba(255,255,255,.55)');
+    drawPerson({ x: px, y: py + 4, pal: PAL_ME, moving: true, anim: G.t * 2 });
+    drawGuitar(px - 3, py, null);
   } else if (!(d.evan && d.evan.carry)) drawMini(px, py, d.dir, d.kind === 'amb' ? 'amb' : (d.bump > 0 && Math.floor(G.t * 10) % 2 ? '#ffffff' : myCar()));
   if (G.crash) {
     if (Math.floor(G.crash.t * 2.5) % 2) { lampGlow(px, py, 18, 'rgba(255,150,40,.45)'); R(px - 8, py - 5, 2, 2, '#ffa030'); R(px + 6, py - 5, 2, 2, '#ffa030'); R(px - 8, py + 3, 2, 2, '#ffa030'); R(px + 6, py + 3, 2, 2, '#ffa030'); }
