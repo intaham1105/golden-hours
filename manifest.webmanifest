@@ -1,0 +1,16 @@
+{
+  "name": "골든타임",
+  "short_name": "골든타임",
+  "description": "의료 대란 속, 골든타임 안에 받아줄 병원을 찾아가는 픽셀 게임",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b0d17",
+  "theme_color": "#0b0d17",
+  "lang": "ko",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

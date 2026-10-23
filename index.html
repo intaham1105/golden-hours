@@ -5,6 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>골든타임</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#0b0d17">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="골든타임">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-180.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Do+Hyeon&family=Nanum+Gothic+Coding:wght@400;700&family=VT323&display=swap">
@@ -26,7 +34,7 @@
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
-html, body { height: 100%; margin: 0; }
+html, body { height: 100%; margin: 0; overscroll-behavior: none; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
 body {
   background: var(--bg); color: var(--ink);
   font-family: var(--f-body);
@@ -45,7 +53,9 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--glow); outl
   container-type: size; overflow: hidden; background: #000;
   box-shadow: 0 0 0 3px var(--line), 0 0 0 6px #05060b;
 }
-#cv { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; }
+#cv { width: 100%; height: 100%; display: block; image-rendering: pixelated; image-rendering: crisp-edges; -webkit-touch-callout: none; }
+#stage { transform-origin: center; flex: none; }
+#rotHint { position: fixed; left: 0; right: 0; top: max(10px, env(safe-area-inset-top, 0px)); text-align: center; font: 700 14px var(--f-body); color: var(--muted); pointer-events: none; }
 
 /* HUD */
 #hud { position: absolute; inset: 0 0 auto 0; display: flex; justify-content: space-between; align-items: flex-start; gap: 2cqw; padding: 2.2cqh 2.4cqw; pointer-events: none; z-index: 10; }
@@ -140,6 +150,18 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--glow); outl
 #pad [data-k="ArrowUp"] { grid-area: 1 / 2; } #pad [data-k="ArrowLeft"] { grid-area: 2 / 1; } #pad [data-k="ArrowRight"] { grid-area: 2 / 3; } #pad [data-k="ArrowDown"] { grid-area: 3 / 2; }
 #pad.drive { left: auto; right: 15cqw; }
 @media (pointer: coarse) { #pad.on { display: grid; } }
+/* 휴대폰·태블릿: 화면을 꽉 채우고, 손가락에 맞게 버튼을 키운다 */
+@media (pointer: coarse) {
+  body { padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px) env(safe-area-inset-left, 0px); }
+  #stage { box-shadow: none; }
+  #pad { grid-template-columns: repeat(3, 15cqh); grid-template-rows: repeat(3, 15cqh); gap: 1cqh; left: 3cqw; bottom: 3cqh; opacity: .75; }
+  #pad button { font-size: 6cqh; line-height: 1; }
+  #pad button:active { background: rgba(122, 243, 204, .35); }
+  #pad.drive { left: auto; right: 14cqw; }
+  #dlg.compact { top: 15cqh; bottom: auto; left: 18cqw; right: 18cqw; }
+  #phoneBtn { width: 12cqh; height: 19cqh; }
+  .hudbtn { font-size: 3.4cqh; padding: 1.2cqh 1.8cqh; }
+}
 
 /* 타이틀 / 엔딩 */
 .ov { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.4cqh; text-align: center; background: rgba(7, 8, 15, .9); padding: 4cqh 8cqw; }
@@ -207,6 +229,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--glow); outl
 </style>
 </head>
 <body>
+<div id="rotHint" hidden>↻ 휴대폰을 가로로 돌려서 해 주세요</div>
 <div id="stage">
   <canvas id="cv" width="640" height="360"></canvas>
 
@@ -218,10 +241,10 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--glow); outl
   </div>
 
   <div id="pad">
-    <button data-k="ArrowUp" aria-label="위">^</button>
-    <button data-k="ArrowLeft" aria-label="왼쪽">&lt;</button>
-    <button data-k="ArrowRight" aria-label="오른쪽">&gt;</button>
-    <button data-k="ArrowDown" aria-label="아래">v</button>
+    <button data-k="ArrowUp" aria-label="위">▲</button>
+    <button data-k="ArrowLeft" aria-label="왼쪽">◀</button>
+    <button data-k="ArrowRight" aria-label="오른쪽">▶</button>
+    <button data-k="ArrowDown" aria-label="아래">▼</button>
   </div>
 
   <button id="phoneBtn" aria-label="휴대폰 열기"></button>
@@ -387,14 +410,35 @@ const el = {
   phClose: $('#phClose'), restart: $('#restartBtn'), phHomeBtn: $('#phHomeBtn'),
 };
 
+const COARSE = matchMedia('(pointer: coarse)');   // 손가락으로 조작하는 기기
 function fit() {
+  // 이름을 입력하는 동안 휴대폰 키보드가 올라와 화면이 줄어도 무대를 다시 맞추지 않는다
+  if (COARSE.matches && document.activeElement && document.activeElement.tagName === 'INPUT') return;
   const st = getComputedStyle(document.body);
-  const aw = document.body.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
-  const ah = document.body.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+  let aw = document.body.clientWidth - parseFloat(st.paddingLeft) - parseFloat(st.paddingRight);
+  let ah = document.body.clientHeight - parseFloat(st.paddingTop) - parseFloat(st.paddingBottom);
+  // 세로로 든 휴대폰: 무대를 90도 돌려 가로 화면처럼 꽉 채운다 (휴대폰을 옆으로 돌려 들면 바로 보인다)
+  const rot = COARSE.matches && ah > aw;
+  if (rot) [aw, ah] = [ah, aw];
   const w = Math.max(200, Math.min(aw, ah * 16 / 9));
-  $('#stage').style.width = w + 'px'; $('#stage').style.height = (w * 9 / 16) + 'px';
+  const stg = $('#stage');
+  stg.style.width = w + 'px'; stg.style.height = (w * 9 / 16) + 'px';
+  stg.style.transform = rot ? 'rotate(90deg)' : '';
+  stg.style.maxWidth = rot ? 'none' : '';   // 돌린 무대는 화면 높이만큼 길어진다
+  $('#rotHint').hidden = !rot;
 }
-addEventListener('resize', fit); fit();
+addEventListener('resize', fit); addEventListener('orientationchange', () => setTimeout(fit, 200));
+addEventListener('focusout', () => setTimeout(fit, 300));
+fit();
+// 휴대폰에서 시작하면 전체 화면 + 가로 고정 (안드로이드). 아이폰은 "홈 화면에 추가"로 전체 화면
+function goFullscreen() {
+  if (!COARSE.matches || document.fullscreenElement) return;
+  const de = document.documentElement;
+  try {
+    const r = de.requestFullscreen && de.requestFullscreen({ navigationUI: 'hide' });
+    if (r && r.then) r.then(() => { if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {}); }, () => {});
+  } catch (e) { /* 지원 안 함 */ }
+}
 
 let popT = 0;
 function popup(text = '지금 이걸 누를 시간이 없어..!', info = false) {
@@ -508,6 +552,8 @@ function beep(freq = 440, dur = 0.12, vol = 0.05, type = 'square') {
 const wakeAudio = () => { const c = AU.ensure(); if (c && c.state === 'suspended') c.resume(); };
 addEventListener('pointerdown', wakeAudio, true);
 addEventListener('keydown', wakeAudio, true);
+addEventListener('touchend', wakeAudio, true);
+addEventListener('click', wakeAudio, true);
 
 // ───── 대화 / 통화창 ─────
 const Dlg = {
@@ -551,6 +597,7 @@ const Dlg = {
   },
 };
 el.dlg.addEventListener('click', () => Dlg.next());
+cv.addEventListener('click', () => { if (Dlg.active) Dlg.next(); });
 
 // ───── 게임 상태 ─────
 let G = null;
@@ -1597,7 +1644,7 @@ function resumeGame(sv) {
   popup('저장된 곳부터 이어서 시작!', true);
   refreshGuides();
 }
-$('#contBtn').addEventListener('click', () => { if (P && P.save) resumeGame(P.save); });
+$('#contBtn').addEventListener('click', () => { if (P && P.save) { goFullscreen(); resumeGame(P.save); } });
 
 // ───── 동네 지도 ─────
 // 월성동은 기준 지도와 같은 배치, 나머지 동네는 같은 문법(격자 도로 + 블록)으로 생성해서 동쪽으로 이어 붙인다.
@@ -2010,11 +2057,16 @@ for (const b of el.pad.querySelectorAll('button')) {
   for (const ev of ['pointerup', 'pointercancel', 'pointerleave']) b.addEventListener(ev, () => { keys[k] = false; });
 }
 
-const introObj = () => G.rich ? '대저택 2층 침실의 평범한 저녁. 방 안을 걸어 보자 (방향키)' : '평범한 저녁. 방 안을 걸어 보자 (방향키)';
+if (COARSE.matches) {
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  $('#title .keys').textContent = '화면 방향키로 이동 · 화면이나 대화창을 탭해서 넘기기 · 휴대폰은 오른쪽 아래'
+    + (ios && !navigator.standalone ? ' · 공유 → "홈 화면에 추가"하면 전체 화면으로 할 수 있어요' : '');
+}
+const introObj = () => G.rich ? '대저택 2층 침실의 평범한 저녁. 방 안을 걸어 보자 (' + (COARSE.matches ? '화면 방향키' : '방향키') + ')' : '평범한 저녁. 방 안을 걸어 보자 (' + (COARSE.matches ? '화면 방향키' : '방향키') + ')';
 function countPlay() { if (P) { P.save = null; P.stats.plays++; saveProfile(true); } }
 $('#startBtn').addEventListener('click', () => {
   if (!P) { openNameOv(); return; }
-  countPlay();
+  goFullscreen(); countPlay();
   el.title.hidden = true; G.phase = 'walk';
   setObj(introObj());
   beep(520, 0.08); refreshGuides();
