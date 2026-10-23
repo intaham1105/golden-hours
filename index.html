@@ -313,6 +313,7 @@ button:focus-visible, input:focus-visible { outline: 2px solid var(--glow); outl
     <p id="endText"></p>
     <dl class="stats" id="endStats"></dl>
     <div class="end-row"><span class="badge" id="endNew" hidden>NEW!</span><span class="count" id="endCount"></span></div>
+    <div class="count" id="endRate"></div>
     <div class="end-row"><button class="btn" id="againBtn">다시 하기</button><button class="btn ghost" id="endDexBtn">엔딩 도감</button></div>
   </div>
 
@@ -469,6 +470,11 @@ const TRACKS = {
   drive: { bpm: 124, ch: [[57, 60, 64], [53, 57, 60], [55, 59, 62], [52, 55, 59]], pad: 0.016, bass: [0, 1, 2, 3, 4, 5, 6, 7], bassVol: 0.04, arp: [0, 3, 6], arpVol: 0.014, beat: [0] },
   hero: { bpm: 140, ch: [[48, 52, 55], [55, 59, 62], [57, 60, 64], [53, 57, 60]], pad: 0.02, bass: [0, 2, 4, 6], bassVol: 0.05, arp: [0, 1, 2, 3, 4, 5, 6, 7], arpVol: 0.016, arpType: 'triangle' },
   rock: { bpm: 150, ch: [[52, 55, 59], [50, 53, 57], [48, 52, 55], [50, 55, 59]], pad: 0.012, padType: 'square', bass: [0, 1, 2, 3, 4, 5, 6, 7], bassVol: 0.06, arp: [0, 2, 3, 4, 6], arpVol: 0.016, arpType: 'sawtooth', beat: [0, 4] },
+  // 병원: 바흐 평균율 1권 전주곡 C장조처럼 화음을 잘게 펼친 잔잔한 클래식
+  classic: { bpm: 116, ch: [[48, 52, 55, 60, 64], [48, 50, 57, 62, 65], [47, 50, 55, 62, 65], [48, 52, 55, 60, 64], [48, 52, 57, 64, 69], [48, 50, 54, 57, 62], [47, 50, 55, 62, 67], [47, 48, 52, 55, 60]],
+    pat: [0, 1, 2, 3, 4, 2, 3, 4], arpVol: 0.022, arpType: 'triangle', pad: 0.008 },
+  // 시간이 얼마 안 남았을 때: 빠른 베이스 + 심장 박동 + 날카로운 반복음
+  urgent: { bpm: 172, ch: [[45, 48, 52], [45, 48, 52], [46, 50, 53], [44, 47, 52]], pad: 0.014, padType: 'sawtooth', bass: [0, 1, 2, 3, 4, 5, 6, 7], bassVol: 0.06, arp: [0, 2, 4, 6], arpVol: 0.012, arpType: 'square', beat: [0, 4] },
   hope: { bpm: 70, ch: [[53, 57, 60], [48, 52, 55], [50, 53, 57], [46, 50, 53]], pad: 0.028, arp: [0, 4], arpVol: 0.016 },
   win: { bpm: 80, ch: [[48, 52, 55], [53, 57, 60], [55, 59, 62], [48, 52, 55, 60]], pad: 0.024, arp: [0, 2, 4, 6], arpVol: 0.02, bass: [0, 4], bassVol: 0.05 },
   sad: { bpm: 54, ch: [[57, 60, 64], [50, 53, 57], [57, 60, 64], [52, 56, 59]], pad: 0.026, arp: [0], arpVol: 0.014 },
@@ -519,6 +525,7 @@ const AU = {
       const t = this.nextT, s = this.step, pos = s % spb, ch = tr.ch[Math.floor(s / spb) % tr.ch.length];
       if (tr.pad && pos === 0) for (const n of ch) this.tone(mtof(n), t, st * spb * 1.05, tr.padType || 'sine', tr.pad, b, 0.5);
       if (tr.bass && tr.bass.includes(pos)) this.tone(mtof(ch[0] - 12), t, st * 1.8, 'triangle', tr.bassVol, b, 0.02);
+      if (tr.pat) this.tone(mtof(ch[tr.pat[pos]]), t, st * 3, tr.arpType, tr.arpVol, b, 0.01);
       if (tr.arp && tr.arp.includes(pos)) this.tone(mtof(ch[(tr.arpSlow ? s >> 1 : s) % ch.length] + 12), t, st * 2.2, tr.arpType || 'sine', tr.arpVol, b, 0.01);
       if (tr.beat && tr.beat.includes(pos)) { this.tone(58, t, 0.16, 'sine', 0.14, b, 0.005); this.tone(52, t + 0.17, 0.14, 'sine', 0.09, b, 0.005); }
       this.nextT += st; this.step++;
@@ -551,6 +558,27 @@ function beep(freq = 440, dur = 0.12, vol = 0.05, type = 'square') {
     o.connect(g); g.connect(AU.sfx); o.start(t); o.stop(t + dur + 0.05);
   } catch (e) { /* 소리 없이 진행 */ }
 }
+// 잡음 효과음: 충돌·쿵·바람 소리. hi > lo 면 소리가 내려가고, lo > hi 면 올라간다
+function noise(dur = 0.3, vol = 0.08, hi = 1200, lo = 200) {
+  const c = AU.ensure(); if (!c) return;
+  try {
+    const t = c.currentTime, n = Math.floor(c.sampleRate * dur), buf = c.createBuffer(1, n, c.sampleRate), a = buf.getChannelData(0);
+    for (let i = 0; i < n; i++) a[i] = Math.random() * 2 - 1;
+    const src = c.createBufferSource(), f = c.createBiquadFilter(), g = c.createGain();
+    src.buffer = buf; f.type = 'lowpass'; f.frequency.setValueAtTime(hi, t); f.frequency.exponentialRampToValueAtTime(Math.max(40, lo), t + dur);
+    g.gain.setValueAtTime(vol, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+    src.connect(f); f.connect(g); g.connect(AU.sfx); src.start(t);
+  } catch (e) { /* 소리 없이 진행 */ }
+}
+const SFX = {
+  thud() { noise(0.35, 0.18, 400, 60); beep(70, 0.25, 0.08, 'sine'); },
+  knock() { for (let k = 0; k < 3; k++) setTimeout(() => { noise(0.12, 0.2, 500, 80); beep(90, 0.08, 0.06, 'sine'); }, k * 260); },
+  ring() { for (let k = 0; k < 2; k++) setTimeout(() => { beep(440, 0.45, 0.03, 'sine'); beep(480, 0.45, 0.03, 'sine'); }, k * 600); },
+  crash() { noise(0.5, 0.25, 3000, 100); beep(60, 0.3, 0.1, 'sawtooth'); setTimeout(() => { beep(392, 0.25, 0.03); beep(494, 0.25, 0.03); }, 250); },
+  whoosh() { noise(0.6, 0.12, 300, 4000); },
+  clank() { noise(0.08, 0.12, 4000, 1500); beep(1400, 0.05, 0.03, 'square'); },
+  chime() { [523, 659, 784, 1047].forEach((f, k) => setTimeout(() => beep(f, 0.3, 0.035, 'triangle'), k * 120)); },
+};
 const wakeAudio = () => { const c = AU.ensure(); if (c && c.state === 'suspended') c.resume(); };
 addEventListener('pointerdown', wakeAudio, true);
 addEventListener('keydown', wakeAudio, true);
@@ -580,6 +608,7 @@ const Dlg = {
   },
   render() {
     const [who, txt] = this.cur();
+    if (this.shown === 0 && this.rang !== this.lines[this.i]) { this.rang = this.lines[this.i]; if (txt.startsWith('뚜르르')) SFX.ring(); }
     el.dlgWho.textContent = who === 'sys' ? '' : who === 'me' ? '나' : who;
     el.dlgText.textContent = txt.slice(0, Math.floor(this.shown));
     el.dlgText.classList.toggle('sys', who === 'sys');
@@ -907,7 +936,7 @@ function updateCut(dt) {
 
 function collapse() {
   G.phase = 'collapsing'; G.shake = 0.7; G.flash = 1; G.p.lying = true; G.p.moving = false;
-  beep(110, 0.4, 0.08);
+  beep(110, 0.4, 0.08); SFX.thud();
   Dlg.start({
     lines: [['sys', '...윽!'], ['me', G.disease.sym], ['sys', `의심 증상: ${G.disease.name}. 골든타임이 흐르기 시작했다.`], ['sys', G.rich ? '오른쪽 아래 휴대폰 연락처에서 집사를 부르자.' : '오른쪽 아래 휴대폰으로 119에 전화하자.']],
     onDone: () => { G.phase = 'collapsed'; G.timerOn = true; setObj(G.rich ? '휴대폰 연락처에서 <b>집사</b> 부르기' : '휴대폰으로 <b>119</b>에 전화하기 (0/3)'); refreshGuides(); },
@@ -922,6 +951,7 @@ function friendArrives() {
   // 갑부면 집사가 1층에서 계단으로 뛰어 올라온다 (더 빠르게)
   const rich = G.rich, run = rich ? 110 : 70, walk = rich ? 55 : 30;
   cutscene([
+    { fn: () => { if (!rich && !G.heli) SFX.knock(); } },
     { dlg: () => ({ lines: rich ? [['sys', '다다다다— 계단을 뛰어오르는 발소리!'], [f.name, '주인님! 들어가겠습니다!']]
       : G.heli ? [['sys', '두두두두두— 창밖이 헬기 불빛으로 번쩍인다!'], [f.name, '나야! 문 열게!']] : [['sys', '쾅쾅쾅!'], [f.name, '나야! 문 열게!']] }) },
     { fn: () => { G.doorOpen = true; G.npc = { x: 160, y: 176, anim: 0, moving: false, pal: rich ? PAL_BUTLER : PAL_FR }; beep(300, 0.1); } },
@@ -1155,11 +1185,22 @@ function enterGuitarRun() {
 }
 function guitarHome() {
   const d = G.drive; d.arrived = true; d.v = 0;
-  cutscene([
-    { dlg: () => ({ lines: [['sys', '집 도착. 숨 하나 차지 않는다.'], ['me', '...근데 나 기타 칠 줄 모르는데.']] }) },
-    { wait: 0.4 },
-    { fn: () => ending('guitar') },
-  ]);
+  transition(() => {
+    // 현관문으로 들어와 방 한가운데까지
+    G.scene = 'house'; G.phase = 'gtrHome'; G.doorOpen = true; G.npc = null; G.carry = false;
+    Object.assign(G.p, { x: 160, y: 182, lying: false, visible: true, moving: false });
+    setObj('');
+    const me = () => G.p;
+    cutscene([
+      { move: [[me, 160, 150]], speed: 70 },
+      { fn: () => { G.doorOpen = false; noise(0.15, 0.15, 600, 80); } },
+      { move: [[me, 150, 110]], speed: 50 },
+      { wait: 0.5 },
+      { dlg: () => ({ lines: [['sys', '집 도착. 숨 하나 차지 않는다.'], ['sys', '품에 안은 빨간 일렉기타를 내려다본다.'], ['me', '...근데 나 기타 칠 줄 모르는데.']] }) },
+      { wait: 0.6 },
+      { fn: () => ending('guitar') },
+    ]);
+  });
 }
 // 빨간 일렉기타. (x, y)는 몸통 왼쪽 아래
 function drawGuitar(x, y, strum) {
@@ -1178,7 +1219,7 @@ function startCrash() {
   d.v = 0; d.light = null; G.cut = null;
   el.pad.classList.remove('on'); el.phoneBtn.classList.remove('glow'); setObj('');
   G.shake = 1.4; G.wflash = 1;
-  beep(70, 0.6, 0.15, 'sawtooth'); beep(140, 0.3, 0.1);
+  beep(70, 0.6, 0.15, 'sawtooth'); beep(140, 0.3, 0.1); SFX.crash();
   G.crash = { t: 0, smoke: [], puff: 0 };
   Dlg.active = false;
   Dlg.start({ blocking: false, auto: true, lines: [['sys', '콰광!!'], [G.helper.name, '차가... 안 움직여...'], [G.helper.name, '누가 좀 도와주세요! 여기 응급환자가 있어요!']] });
@@ -1209,6 +1250,8 @@ function startEvan() {
   const ax = hz ? 0 : lat, ay = hz ? lat : 0;
   d.evan = { phase: 'chase', t: 0, ax, ay, x: d.x + ax - v[0] * 190, y: d.y + ay - v[1] * 190, dir: d.dir, face: d.dir, carry: false, lk: 0, bits: [], path: null, pi: 0, foot: 0, s1: false, s2: false };
   d.light = null; el.pad.classList.remove('on');
+  // 에반이 나타나면 골든타임은 더 흐르지 않는다: 시간이 다 돼도 병원까지 데려간다
+  G.timerOn = false; G.faint = false; SFX.whoosh();
   Dlg.active = false; el.dlg.hidden = true;
   Dlg.start({ blocking: false, auto: true, lines: [['sys', '뒤에서 파란 스포츠카가 엄청난 속도로 따라붙는다!'], [G.helper.name, '뭐, 뭐야 저 차?!']] });
   beep(300, 0.1); beep(450, 0.1);
@@ -1231,13 +1274,14 @@ function updateEvan(dt) {
       e.x = tx; e.y = ty;
       if (d.v < 5) {
         e.phase = 'transform'; e.t = 0; G.wflash = 0.8; G.shake = 0.4;
-        beep(400, 0.08); beep(800, 0.12, 0.05, 'sawtooth');
-        for (let k = 0; k < 28; k++) e.bits.push({ x: e.x + rnd(-7, 7), y: e.y + rnd(-4, 4), vx: rnd(-70, 70), vy: rnd(-90, -20), a: 1, s: pick([1, 2]), c: pick(['#2a6ad8', '#f4f4f4', '#14161f', '#ffc93a']) });
+        beep(400, 0.08); beep(800, 0.12, 0.05, 'sawtooth'); SFX.whoosh();
+        for (let k = 0; k < 28; k++) e.bits.push({ x: e.x + rnd(-7, 7), y: e.y + rnd(-4, 4), vx: rnd(-70, 70), vy: rnd(-90, -20), a: 1, s: pick([1, 2]), c: pick(['#2438c0', '#2450d0', '#f0f0f0', '#ff9a2a', '#e8302a', '#14161f']) });
       }
     }
   } else if (e.phase === 'transform') {
+    if (Math.floor(e.t * 7) !== Math.floor((e.t - dt) * 7)) SFX.clank();
     if (!e.s1 && e.t >= 0.5) { e.s1 = true; beep(600, 0.1); G.shake = 0.3; }
-    if (!e.s2 && e.t >= 1.0) { e.s2 = true; beep(1000, 0.25, 0.05, 'sawtooth'); G.wflash = 0.5; }
+    if (!e.s2 && e.t >= 1.0) { e.s2 = true; beep(1000, 0.25, 0.05, 'sawtooth'); G.wflash = 0.5; SFX.chime(); }
     if (e.t >= 1.6) {
       e.phase = 'lift'; e.t = 0;
       Dlg.start({ blocking: false, auto: true, lines: [['파란 로봇', '걱정 마. 병원까지 내가 데려다줄게!'], [G.helper.name, '...내 차가... 들린다...?']] });
@@ -1272,29 +1316,39 @@ function updateEvan(dt) {
     }
   }
 }
-// 파란 로봇 (이름·로고 없는 독자 디자인). 발밑 기준, 키 약 25px
+// 파란 로봇: 파란 몸, 주황 포인트, 흰 주먹, 어깨의 바퀴, 등 뒤로 선 문짝. 발밑 기준, 키 약 27px
 function drawRobot(x, y, f) {
   x = Math.round(x); y = Math.round(y);
-  const B = '#2a6ad8', D = '#163a80', Wt = '#f4f4f4', K = '#14161f', Y = '#ffc93a';
-  R(x - 7, y - 1, 14, 2, 'rgba(0,0,0,.35)');
+  const B = '#2450d0', D = '#16308a', L = '#4a7af0', O = '#ff9a2a', Wt = '#f0f0f0', K = '#14161f';
+  R(x - 8, y - 1, 16, 2, 'rgba(0,0,0,.35)');
   if (f.half) {
-    // 반쯤 변신: 차체가 세워지는 중
-    R(x - 7, y - 13, 14, 12, B); R(x - 7, y - 8, 14, 2, Wt); R(x - 3, y - 12, 6, 4, K);
-    R(x - 8, y - 3, 3, 2, K); R(x + 5, y - 3, 3, 2, K); R(x - 2, y - 16, 4, 3, B); R(x - 1, y - 15, 2, 1, Y);
+    // 반쯤 변신: 차체가 세워지고 바퀴가 어깨로 올라가는 중
+    R(x - 7, y - 14, 14, 13, B); R(x - 7, y - 14, 14, 1, L); R(x - 3, y - 12, 6, 4, '#0c1030');
+    R(x - 1, y - 7, 2, 3, '#e8302a'); R(x - 9, y - 12, 3, 4, K); R(x + 6, y - 12, 3, 4, K);
+    R(x - 8, y - 3, 3, 2, K); R(x + 5, y - 3, 3, 2, K); R(x - 1, y - 17, 2, 3, O);
     return;
   }
   const leg = f.run ? (Math.floor(G.t * 10) % 2 ? 1 : -1) : 0;
-  R(x - 5, y - 8, 3, leg > 0 ? 6 : 8, B); R(x + 2, y - 8, 3, leg < 0 ? 6 : 8, B);
-  R(x - 5, y - 5, 3, 1, Wt); R(x + 2, y - 5, 3, 1, Wt);
-  R(x - 6, y - (leg > 0 ? 3 : 1), 4, 1, K); R(x + 2, y - (leg < 0 ? 3 : 1), 4, 1, K);
-  R(x - 4, y - 10, 8, 2, D);
-  R(x - 6, y - 17, 12, 7, B); R(x - 4, y - 16, 8, 4, Wt); R(x - 3, y - 15, 6, 2, '#8fc7dd');
-  R(x - 4, y - 12, 2, 1, Y); R(x + 2, y - 12, 2, 1, Y);
-  R(x - 8, y - 18, 3, 4, K); R(x + 5, y - 18, 3, 4, K);
-  if (f.up) { R(x - 8, y - 25, 2, 8, B); R(x + 6, y - 25, 2, 8, B); R(x - 8, y - 26, 2, 1, Wt); R(x + 6, y - 26, 2, 1, Wt); }
-  else { R(x - 8, y - 15, 2, 7, B); R(x + 6, y - 15, 2, 7, B); R(x - 8, y - 8, 2, 1, Wt); R(x + 6, y - 8, 2, 1, Wt); }
-  R(x - 3, y - 22, 6, 5, B); R(x - 2, y - 20, 4, 1, Y); R(x - 2, y - 19, 4, 2, Wt);
-  R(x - 4, y - 23, 1, 3, Wt); R(x + 3, y - 23, 1, 3, Wt); R(x - 1, y - 24, 2, 2, Y);
+  // 다리: 파란 정강이, 흰 무릎, 넓은 발
+  R(x - 6, y - 10, 4, leg > 0 ? 7 : 9, B); R(x + 2, y - 10, 4, leg < 0 ? 7 : 9, B);
+  R(x - 6, y - 7, 4, 1, Wt); R(x + 2, y - 7, 4, 1, Wt);
+  R(x - 7, y - (leg > 0 ? 3 : 1), 5, 1, D); R(x + 2, y - (leg < 0 ? 3 : 1), 5, 1, D);
+  // 허리와 몸통: 흰 가슴판, 주황 다이아, 주황 V
+  R(x - 4, y - 12, 8, 2, D); R(x - 1, y - 12, 2, 1, O);
+  R(x - 6, y - 19, 12, 7, B); R(x - 6, y - 19, 12, 1, L);
+  R(x - 5, y - 18, 4, 3, Wt); R(x + 1, y - 18, 4, 3, Wt);
+  R(x - 1, y - 18, 2, 1, O); R(x - 2, y - 17, 4, 1, O); R(x - 1, y - 16, 2, 1, O);
+  R(x - 3, y - 14, 2, 1, O); R(x + 1, y - 14, 2, 1, O);
+  // 등 뒤로 선 문짝 날개
+  R(x - 11, y - 28, 3, 9, B); R(x + 8, y - 28, 3, 9, B); R(x - 11, y - 28, 3, 1, L); R(x + 8, y - 28, 3, 1, L);
+  // 어깨 바퀴
+  R(x - 10, y - 21, 4, 5, K); R(x + 6, y - 21, 4, 5, K); R(x - 9, y - 19, 2, 1, '#555'); R(x + 7, y - 19, 2, 1, '#555');
+  // 팔과 흰 주먹 (들어 올릴 때는 위로)
+  if (f.up) { R(x - 9, y - 28, 3, 8, B); R(x + 6, y - 28, 3, 8, B); R(x - 9, y - 30, 3, 2, Wt); R(x + 6, y - 30, 3, 2, Wt); }
+  else { R(x - 9, y - 16, 3, 6, B); R(x + 6, y - 16, 3, 6, B); R(x - 9, y - 10, 3, 2, Wt); R(x + 6, y - 10, 3, 2, Wt); }
+  // 머리: 주황 뿔, 하늘색 눈
+  R(x - 2, y - 23, 4, 4, B); R(x - 1, y - 21, 2, 1, '#9ee8ff'); R(x - 1, y - 20, 2, 1, D);
+  R(x - 2, y - 24, 4, 1, O); R(x, y - 27, 1, 3, O);
 }
 function drawEvan(camX, camY) {
   const e = G.drive.evan, x = e.x - camX, y = e.y - camY;
@@ -1314,7 +1368,7 @@ function drawEvan(camX, camY) {
     else drawRobot(x, y + 6, { half: e.t < 1.0 });
   } else {
     drawRobot(x, y + 6, { run: e.phase === 'run', up: e.carry });
-    if (e.carry) drawMini(x, y - 22 * e.lk, e.face, myCar());
+    if (e.carry) drawMini(x, y - 26 * e.lk, e.face, myCar());
   }
 }
 
@@ -1392,19 +1446,22 @@ function drawDeath() {
 
 // ───── 엔딩 ─────
 // cls: win(성공) · rare(희귀/히든) · lose(실패). hint는 도감에서 못 본 엔딩에 보이는 힌트
+// rate: 확률(%)로 정해지는 엔딩, when: 그 확률이 굴러가는 때 또는 실력으로 맞춰야 하는 조건
 const ENDINGS = [
-  { id: 'full', name: '완쾌', cls: 'win', desc: '여유 있게 도착해 완쾌했다', hint: '지인 차로 아주 빨리 도착하기' },
-  { id: 'icu', name: '중환자실', cls: 'win', desc: '수술은 성공, 한동안 중환자실', hint: '지인 차로 병원에 도착하기' },
-  { id: 'scar', name: '후유증', cls: 'win', desc: '살았지만 후유증이 남았다', hint: '마지막 몇 분까지 버텨 도착하기' },
-  { id: 'doctor', name: '의사 친구', cls: 'rare', desc: '먼 곳의 의사 친구가 길을 열어 줬다', hint: '연락처에서 "의사"를 찾아보자' },
-  { id: 'rich', name: '집사의 등', cls: 'rare', desc: '집사의 등에 업혀 VIP 수술실로', hint: '아주 드물게, 전혀 다른 집에서 눈을 뜬다' },
-  { id: 'evan', name: '파란 로봇', cls: 'rare', desc: '파란 로봇이 차를 안고 달렸다', hint: '???', hidden: true },
-  { id: 'heli', name: '하늘길', cls: 'rare', desc: '친구가 헬기를 몰고 와 병원 옥상에 내렸다', hint: '???', hidden: true },
-  { id: 'guitar', name: '기타 병원', cls: 'rare', desc: '기타의 신의 음악치유, 그리고 기타 강탈', hint: '???', hidden: true },
-  { id: 'crash', name: '사고', cls: 'lose', desc: '세 번의 사고, 멈춰 선 차', hint: '운전 중 사고를 여러 번 내면...' },
-  { id: 'home', name: '집에서 꺼진 불', cls: 'lose', desc: '거절 전화 속에 집에서 쓰러졌다', hint: '집에서 시간이 다 지나면' },
-  { id: 'road', name: '길 위에서', cls: 'lose', desc: '병원을 앞에 두고 멈췄다', hint: '운전 중에 시간이 다 지나면' },
+  { id: 'full', name: '완쾌', cls: 'win', desc: '여유 있게 도착해 완쾌했다', hint: '지인 차로 아주 빨리 도착하기', when: '지인 차로 남은 시간 10분 이상' },
+  { id: 'icu', name: '중환자실', cls: 'win', desc: '수술은 성공, 한동안 중환자실', hint: '지인 차로 병원에 도착하기', when: '지인 차로 남은 시간 3~10분' },
+  { id: 'scar', name: '후유증', cls: 'win', desc: '살았지만 후유증이 남았다', hint: '마지막 몇 분까지 버텨 도착하기', when: '지인 차로 남은 시간 3분 미만' },
+  { id: 'doctor', name: '의사 친구', cls: 'rare', desc: '먼 곳의 의사 친구가 길을 열어 줬다', hint: '연락처에서 "의사"를 찾아보자', rate: DOC_FRIEND_CHANCE * 100, when: '"의사"를 검색할 때' },
+  { id: 'rich', name: '집사의 등', cls: 'rare', desc: '집사의 등에 업혀 VIP 수술실로', hint: '아주 드물게, 전혀 다른 집에서 눈을 뜬다', rate: RICH_CHANCE * 100, when: '게임을 시작할 때' },
+  { id: 'evan', name: '파란 로봇', cls: 'rare', desc: '파란 로봇이 차를 안고 달렸다', hint: '???', hidden: true, when: `운전 중 파란 스포츠카 ${EVAN_NEED}대를 만나면` },
+  { id: 'heli', name: '하늘길', cls: 'rare', desc: '친구가 헬기를 몰고 와 병원 옥상에 내렸다', hint: '???', hidden: true, rate: HELI_CHANCE * 100, when: '지인에게 전화할 때' },
+  { id: 'guitar', name: '기타 병원', cls: 'rare', desc: '기타의 신의 음악치유, 그리고 기타 강탈', hint: '???', hidden: true, rate: GUITAR_CHANCE * 100, when: '지인 차로 병원을 찾을 때' },
+  { id: 'crash', name: '사고', cls: 'lose', desc: '세 번의 사고, 멈춰 선 차', hint: '운전 중 사고를 여러 번 내면...', when: '운전 중 사고 3번' },
+  { id: 'home', name: '집에서 꺼진 불', cls: 'lose', desc: '거절 전화 속에 집에서 쓰러졌다', hint: '집에서 시간이 다 지나면', when: '차에 타기 전에 시간 초과' },
+  { id: 'road', name: '길 위에서', cls: 'lose', desc: '병원을 앞에 두고 멈췄다', hint: '운전 중에 시간이 다 지나면', when: '운전 중에 시간 초과' },
 ];
+const rateShort = E => E.rate != null ? `확률 ${E.rate}%` : '조건 달성';
+const rateText = E => E.rate != null ? `확률 ${E.rate}% · ${E.when}` : `조건 · ${E.when}`;
 const loadSeen = () => P ? P.endings : [];
 function recordEnding(id) {
   if (!P || P.endings.includes(id)) return false;
@@ -1419,7 +1476,7 @@ function openDex() {
     const got = seen.includes(e.id), c = document.createElement('div');
     c.className = 'dex-card ' + (got ? e.cls : 'locked');
     c.innerHTML = '<small></small><b></b><span></span>';
-    c.children[0].textContent = `No.${i + 1}`;
+    c.children[0].textContent = got ? `No.${i + 1} · ${rateShort(e)}` : `No.${i + 1}`;
     c.children[1].textContent = got ? e.name : '???';
     c.children[2].textContent = got ? e.desc : e.hint;
     $('#dexGrid').appendChild(c);
@@ -1469,9 +1526,11 @@ function ending(id) {
     saveProfile(true);
   }
   $('#endNew').hidden = !isNew;
+  $('#endRate').textContent = rateText(E);
   $('#endCount').textContent = `엔딩 ${ENDINGS.findIndex(x => x.id === id) + 1}번 · 수집 ${loadSeen().length}/${ENDINGS.length}`;
   refreshDexBtn();
   e.hidden = false; setObj('');
+  if (!lose) SFX.chime();
 }
 
 // ───── 플레이어 프로필 · 저장 ─────
@@ -2222,11 +2281,12 @@ function moodNow() {
   if (!el.title.hidden || !$('#nameOv').hidden) return 'title';
   if (!el.end.hidden) return el.end.classList.contains('lose') ? 'sad' : 'win';
   if (G.dying || G.crash) return null;
-  if (G.scene === 'treat') return G.gtr ? (G.gtr.play || G.gtr.dance ? 'rock' : 'hope') : 'hope';
-  if (G.scene === 'office') return 'rich';
-  if (G.scene === 'drive') return G.drive.kind === 'run' ? 'rock' : G.drive.evan || G.drive.kind === 'heli' ? 'hero' : G.drive.arrived ? 'hope' : 'drive';
+  if (G.scene === 'treat') return G.gtr && (G.gtr.play || G.gtr.dance) ? 'rock' : 'classic';
+  if (G.scene === 'office') return 'classic';
+  if (G.phase === 'gtrHome') return 'home';
+  if (G.scene === 'drive') return G.drive.kind === 'run' ? 'rock' : G.drive.evan || G.drive.kind === 'heli' ? 'hero' : G.drive.arrived ? 'classic' : G.time <= 300 ? 'urgent' : 'drive';
   if (G.phase === 'walk') return G.rich ? 'rich' : 'home';
-  return 'tense';
+  return G.timerOn && G.time <= 600 ? 'urgent' : 'tense';
 }
 function update(dt) {
   G.t += dt;
@@ -2244,7 +2304,7 @@ function update(dt) {
   if (G.crash) updateCrash(dt);
   G.wflash = Math.max(0, G.wflash - dt * 1.5);
   const dv = G.drive;
-  if (G.scene === 'drive' && dv && !dv.arrived && !G.ended && !dv.saidLow && G.time <= 180 && !Dlg.active) startFaint();
+  if (G.scene === 'drive' && dv && !dv.arrived && !G.ended && !dv.evan && G.timerOn && !dv.saidLow && G.time <= 180 && !Dlg.active) startFaint();
   if (G.faint && G.timerOn && Math.floor(G.t / 2.6) !== Math.floor((G.t - dt) / 2.6)) { beep(48, 0.25, 0.12, 'sine'); }
   el.timer.textContent = fmt(G.time);
   el.clock.classList.toggle('low', G.timerOn && G.time < 600);
@@ -2266,6 +2326,7 @@ function update(dt) {
   }
   if (G.phase === 'waitFriend') { G.waitT += dt; if (G.waitT > (G.rich ? 2 : 3.5)) friendArrives(); }
   if (G.scene === 'drive') updateDrive(dt);
+  if (G.scene === 'treat' && !(G.gtr && (G.gtr.play || G.gtr.dance)) && Math.floor(G.t / 0.65) !== Math.floor((G.t - dt) / 0.65)) beep(1000, 0.06, 0.012, 'sine');   // 처치실 심전도
   if (G.scene === 'treat' && G.gtr && G.gtr.play && Math.floor(G.t / 0.13) !== Math.floor((G.t - dt) / 0.13)) beep(pick([330, 392, 440, 494, 587, 659]), 0.1, 0.035, 'sawtooth');   // 일렉기타 리프
   // 소리: 상황별 배경음, 운전 중 엔진
   AU.mood(moodNow());
@@ -2468,7 +2529,7 @@ function updateDrive(dt) {
     const pv = DIRV[d.dir], mine = (n.x - d.x) * pv[0] + (n.y - d.y) * pv[1] > 0 && d.v > 5;
     const nl = n.hl + 6, nw = n.hw + 3;   // 내 차(길이 7·폭 4 반쪽)와 겹칠 때만, 1px 여유
     if (!d.auto && !d.evan && !G.ended && mine && d.bump <= 0 && Math.abs(n.x - d.x) < (n.hz ? nl : nw) && Math.abs(n.y - d.y) < (n.hz ? nw : nl)) {
-      d.bump = 1.5; d.v = 0; G.shake = 0.35; beep(90, 0.2, 0.08);
+      d.bump = 1.5; d.v = 0; G.shake = 0.35; SFX.crash();
       const v = DIRV[d.dir];
       for (let k = 0; k < 6; k++) if (fits(d.x - v[0] * 2, d.y - v[1] * 2)) { d.x -= v[0] * 2; d.y -= v[1] * 2; }
       G.crashes++;
@@ -2579,6 +2640,7 @@ function drawHouse() {
   lampGlow(155, 50, 110, 'rgba(255,220,160,.08)');
   if (G.carry && G.npc && !G.npc.hidden) drawCarry(G.npc);
   else { if (G.npc) drawPerson(G.npc); if (G.p.visible) drawPerson(G.p); }
+  if (G.phase === 'gtrHome') drawGuitar(G.p.x - 3, G.p.y - 3, null);
 }
 
 function drawOutside() {
@@ -2727,11 +2789,14 @@ function drawMini(x, y, dir, kind, col) {
     R(-8, -4, 1, 8, '#111');
     R(7, -2, 1, 1, '#fff3a8'); R(7, 1, 1, 1, '#fff3a8'); R(-7, -3, 1, 2, '#d22'); R(-7, 1, 1, 2, '#d22');
   } else if (kind === 'evan') {
-    // 파란 스포츠카: 흰 줄무늬, 검은 캐노피, 금색 포인트
+    // 파란 스포츠카: 짙은 파랑 반투명 차체, 검은 지붕, 보닛의 빨간 V 줄무늬, 흰 옆 포인트
     wheels([-7, 3]);
-    R(-8, -4, 15, 8, '#2a6ad8'); R(7, -3, 1, 6, '#2a6ad8'); R(-8, 3, 15, 1, '#163a80');
-    R(-8, -1, 16, 2, '#f4f4f4'); R(-1, -3, 4, 6, '#14161f'); R(0, -1, 2, 2, '#f4f4f4');
-    R(-6, -3, 2, 1, '#ffc93a'); R(-6, 2, 2, 1, '#ffc93a'); R(-9, -4, 1, 8, '#1a1a1a');
+    R(-8, -4, 15, 8, '#2438c0'); R(7, -3, 1, 6, '#2438c0'); R(-8, -4, 15, 1, '#4a64ee'); R(-8, 3, 15, 1, '#141e70');
+    R(-4, -3, 5, 6, '#0c1030'); R(-3, -2, 3, 1, '#3a50c8');
+    R(-8, -1, 4, 2, '#e8302a');
+    for (const [vx, vy] of [[2, -3], [3, -2], [4, -1], [4, 0], [3, 1], [2, 2]]) R(vx, vy, 1, 1, '#e8302a');
+    R(5, -1, 1, 2, '#e8302a');
+    R(-6, -4, 3, 1, '#e8eef8'); R(-6, 3, 3, 1, '#e8eef8'); R(-9, -4, 1, 8, '#0c1030');
     lights(7, -8, 4);
   } else if (kind === 'van') {
     // 택배 트럭: 큰 짐칸 + 작은 운전석
