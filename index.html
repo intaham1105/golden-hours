@@ -365,6 +365,7 @@ const HELI_CHANCE = 0.15;  // 친구가 헬기를 타고 오는 히든 엔딩 �
 const HELI_SPEED = 380;    // 헬기 비행 속도 (px/초)
 const GUITAR_CHANCE = 0.05; // 받아 주는 병원이 대곡동 기타 병원일 확률 (히든 엔딩)
 const GUITAR_TOWN = 2;      // 대곡동은 세 번째 동네
+const GUITAR_HOSP = '기타의 신 이광언이 하는 기타 병원';   // 병원 풀네임
 const GUITAR_RUN = 240;     // 기타를 들고 집까지 달리는 속도 (람보르기니보다 빠름)
 const DEF_SET = { music: 60, sfx: 80, shake: true, fast: false };
 let SET = { ...DEF_SET };   // 지금 설정 (프로필을 불러오면 프로필 것으로 바뀜)
@@ -395,7 +396,7 @@ const PAL_ME = { h: '#2b2220', s: '#f2c19b', e: '#2b2220', b: '#5b8cd6', p: '#36
 const PAL_FR = { h: '#6b3e22', s: '#e8b48c', e: '#2b2220', b: '#4fae6a', p: '#4a3b2e', k: '#16161d' };
 const PAL_BUTLER = { h: '#b8b8c0', s: '#e8b48c', e: '#2b2220', b: '#22222c', p: '#22222c', k: '#0a0a0e' };
 const PAL_DIR = { h: '#9a9aa4', s: '#f0c19c', e: '#2b2220', b: '#f4f6f8', p: '#3a3a48', k: '#16161d' };
-const PAL_ROCK = { h: '#121216', s: '#f0c19c', e: '#2b2220', b: '#f4f4f4', p: '#1a1a20', k: '#0a0a0e' };   // 미친기타신 이광언: 긴 머리 + 흰 가운
+const PAL_ROCK = { h: '#121216', s: '#f0c19c', e: '#2b2220', b: '#f4f4f4', p: '#1a1a20', k: '#0a0a0e' };   // 기타의 신 이광언: 긴 머리 + 흰 가운
 const PAL_EMT = { h: '#1f1f26', s: '#f0c19c', e: '#2b2220', b: '#e8eef5', p: '#2b4a8a', k: '#16161d' };
 const BODY = ['..hhhh..', '.hhhhhh.', '.hssssh.', '.sesses.', '..ssss..', '.bbbbbb.', 'sbbbbbbs', 'sbbbbbbs', '.bbbbbb.'];
 const LEGS = [['.pp..pp.', '.pp..pp.', '.kk..kk.'], ['.pp..pp.', '.pp...k.', '.kk.....'], ['.pp..pp.', '.k...pp.', '.....kk.']];
@@ -1050,9 +1051,9 @@ function inCarCalls() {
       Dlg.start({
         title: '스피커폰 · ' + f, blocking: false, auto: true, lines: gtr ? [
           ['sys', '뚜르르... 수화기 너머로 지이이잉— 일렉기타 소리가 들린다.'],
-          ['기타 병원', '네~ 대곡동 기타 병원입니다! 원장님이 지금 바로 봐 주신대요!'],
+          ['기타 병원', `네~ 대곡동 ${GUITAR_HOSP}입니다! 원장님이 지금 바로 봐 주신대요!`],
           [f, '기타... 병원? 아무 데나 좋아요! 지금 갑니다!'],
-          [f, `${T.name} 기타 병원! 미친기타신 이광언이라는 의사가 있대. 내비 화살표 따라가!`]] : [
+          [f, `${T.name} ${GUITAR_HOSP}! 내비 화살표 따라가!`]] : [
           ['sys', '뚜르르...'],
           [T.hosp.name, `${T.hosp.name} 응급실입니다. ...네, 지금 수술 가능합니다. 바로 오세요.`],
           [f, `${T.name} ${T.hosp.name}! 여기서 ${Math.max(1, k - cur)}동네 더 가야 해. 내비 화살표 따라가!`]],
@@ -1065,7 +1066,7 @@ function arrive() {
   const d = G.drive; if (d.arrived) return; d.arrived = true; d.v = 0; G.timerOn = false; d.light = null;
   Dlg.active = false; el.dlg.hidden = true;
   refreshGuides();
-  const kind = d.evan ? 'evan' : d.kind === 'heli' ? 'heli' : d.kind === 'amb' ? 'doctor' : d.target.name === '기타 병원' ? 'guitar' : G.time >= 600 ? 'full' : G.time >= 180 ? 'icu' : 'scar';
+  const kind = d.evan ? 'evan' : d.kind === 'heli' ? 'heli' : d.kind === 'amb' ? 'doctor' : d.target.name === GUITAR_HOSP ? 'guitar' : G.time >= 600 ? 'full' : G.time >= 180 ? 'icu' : 'scar';
   G.faint = false;
   const v = DIRV[d.dir], fx = d.x + v[0] * 15, fy = d.y + v[1] * 15;
   const ex = d.target.x, ey = d.target.y - 28;
@@ -1073,7 +1074,7 @@ function arrive() {
   G.medics = [M1, M2];
   G.medFade = { from: Math.max(10, Math.hypot(fx - 5 - M1.x, fy - M1.y)), tx: fx - 5, ty: fy };
   setObj(`<b>${d.target.name}</b> 도착!`);
-  Dlg.start({ blocking: false, auto: true, lines: kind === 'guitar' ? [['sys', '기타 병원 앞. 건물 안에서 앰프 소리가 쿵쿵 울린다.'], ['간호사', '원장님이 기다리고 계세요! 이쪽으로!']]
+  Dlg.start({ blocking: false, auto: true, lines: kind === 'guitar' ? [['sys', `${GUITAR_HOSP} 앞. 건물 안에서 앰프 소리가 쿵쿵 울린다.`], ['간호사', '원장님이 기다리고 계세요! 이쪽으로!']]
     : [['sys', `${d.target.name} 응급실 앞. 의료진이 들것을 들고 뛰어나온다.`], ['의료진', '환자분 이쪽으로! 바로 옮깁니다!']] });
   cutscene([
     { wait: 0.8 },
@@ -1108,7 +1109,7 @@ function enterTreat(kind) {
   ]);
 }
 
-// ───── 히든 엔딩: 대곡동 기타 병원, 미친기타신 이광언의 음악치유 ─────
+// ───── 히든 엔딩: 대곡동 기타의 신 이광언이 하는 기타 병원, 음악치유 ─────
 function enterGuitar() {
   const at = `${G.drive.target.town} ${G.drive.target.name}`;
   G.scene = 'treat'; G.medics = null; G.fadeDir = -1;
@@ -1122,7 +1123,7 @@ function enterGuitar() {
   cutscene([
     { wait: 1.2 },
     { dlg: () => ({ lines: [['sys', '대곡동 기타 병원 진료실. 벽마다 앰프가 쌓여 있다...'],
-      ['이광언', '어서 와요. 이 병원 원장, 미친기타신 이광언입니다.'],
+      ['이광언', '어서 와요. 이 병원 원장, 기타의 신 이광언입니다.'],
       ['이광언', '수술이요? 필요 없어요. 바로 음악치유 들어갑니다.']] }) },
     { fn: () => { gt.play = true; G.flash = 0.5; G.shake = 0.3; } },
     { wait: 3.2 },
@@ -1399,7 +1400,7 @@ const ENDINGS = [
   { id: 'rich', name: '집사의 등', cls: 'rare', desc: '집사의 등에 업혀 VIP 수술실로', hint: '아주 드물게, 전혀 다른 집에서 눈을 뜬다' },
   { id: 'evan', name: '파란 로봇', cls: 'rare', desc: '파란 로봇이 차를 안고 달렸다', hint: '???', hidden: true },
   { id: 'heli', name: '하늘길', cls: 'rare', desc: '친구가 헬기를 몰고 와 병원 옥상에 내렸다', hint: '???', hidden: true },
-  { id: 'guitar', name: '기타 병원', cls: 'rare', desc: '미친기타신의 음악치유, 그리고 기타 강탈', hint: '???', hidden: true },
+  { id: 'guitar', name: '기타 병원', cls: 'rare', desc: '기타의 신의 음악치유, 그리고 기타 강탈', hint: '???', hidden: true },
   { id: 'crash', name: '사고', cls: 'lose', desc: '세 번의 사고, 멈춰 선 차', hint: '운전 중 사고를 여러 번 내면...' },
   { id: 'home', name: '집에서 꺼진 불', cls: 'lose', desc: '거절 전화 속에 집에서 쓰러졌다', hint: '집에서 시간이 다 지나면' },
   { id: 'road', name: '길 위에서', cls: 'lose', desc: '병원을 앞에 두고 멈췄다', hint: '운전 중에 시간이 다 지나면' },
@@ -1440,7 +1441,7 @@ function endingText(id) {
     case 'rich': return '집 바로 앞 대형병원, 병원장이 직접 비워 둔 수술실. 같은 밤 같은 병원 응급실 앞에서는 오늘도 "수용 불가"라는 대답이 이어졌다.';
     case 'evan': return `파란 스포츠카가 로봇으로 변신해 ${help}의 차를 통째로 안고 ${at}까지 달렸다. 아무도 믿지 않겠지만, 살았다.`;
     case 'heli': return `${help}이(가) 헬기를 몰고 와 집 앞 도로에 내렸다. 막힌 길도 빨간불도 없이, ${at}까지 몇 분 만에 날아갔다.`;
-    case 'guitar': return '대곡동 기타 병원, 미친기타신 이광언 원장의 빨간 일렉기타 음악치유로 벌떡 일어났다. 감사의 악수를 나눈 뒤 기타를 들고 자동차보다 빠르게 집까지 달려왔다. 기타 병원은 오늘도 기타를 찾고 있다.';
+    case 'guitar': return `대곡동 ${GUITAR_HOSP}, 이광언 원장의 빨간 일렉기타 음악치유로 벌떡 일어났다. 감사의 악수를 나눈 뒤 기타를 들고 자동차보다 빠르게 집까지 달려왔다. 기타 병원은 오늘도 기타를 찾고 있다.`;
     case 'crash': return `세 번째 사고로 ${help}의 ${G.lambo ? '람보르기니' : '차'}가 멈춰 섰다. 견인차도, 구급차도 오지 않았다.`;
     case 'home': return '수화기 너머 거절만 듣다가, 집 바닥에서 의식이 꺼졌다. 이 밤, 같은 이유로 쓰러진 사람이 또 있다.';
     case 'road': return (at ? `${at}까지 ${(Math.hypot(d.target.x - d.x, d.target.y - d.y) / 1000 * 1.2).toFixed(1)}km를 남기고 심장이 멈췄다.` : '받아줄 병원조차 정하지 못한 채, 차 안에서 심장이 멈췄다.') + ' 이 밤, 같은 이유로 길 위에 있는 사람이 또 있다.';
@@ -2020,7 +2021,7 @@ function buildWorld(names) {
     const roads = def.roads.map(wide), bridges = def.bridges.map(wide);
     paintRoads(roads, bridges);
     def.over();
-    const hosp = { ...def.hosp, name: def.hosp.name || (name === '대곡동' ? '기타 병원' : hospName(name)), open: false };
+    const hosp = { ...def.hosp, name: def.hosp.name || (name === '대곡동' ? GUITAR_HOSP : hospName(name)), open: false };
     hosp.ex += ox; hosp.lx += ox;
     W_.towns.push({ name, ox, canvas: cvs, hosp });
     for (const r of roads.concat(bridges)) { markRect(mask, ox + r[0], r[1], r[2], r[3], 1); W_.rds.push({ x: ox + r[0], y: r[1], w: r[2], h: r[3], hz: r[2] > r[3] }); }
